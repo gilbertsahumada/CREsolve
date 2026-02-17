@@ -7,10 +7,9 @@ interface IReceiver {
     function onReport(bytes calldata metadata, bytes calldata report) external;
 }
 
-interface IRewardsDistributor {
-    function resolveAndDistribute(
-        address studio,
-        uint64 epoch,
+interface ICREsolverMarket {
+    function resolveMarket(
+        uint256 marketId,
         address[] calldata workers,
         uint256[] calldata weights,
         uint8[] calldata dimScores,
@@ -21,25 +20,25 @@ interface IRewardsDistributor {
 /**
  * @title CREReceiver
  * @notice Receives DON-signed reports from KeystoneForwarder and forwards
- *         resolution data to RewardsDistributor.resolveAndDistribute()
- * @dev Deploy this, then call rewardsDistributor.setAuthorizedResolver(address(this), true)
+ *         resolution data to CREsolverMarket.resolveMarket()
+ * @dev Deploy this, then call market.setAuthorizedResolver(address(this), true)
  *
  * @author CREsolver
  */
 contract CREReceiver is IReceiver, Ownable {
-    IRewardsDistributor public immutable rewardsDistributor;
+    ICREsolverMarket public immutable market;
     address public keystoneForwarder;
 
-    event ReportReceived(bytes32 indexed workflowId, address indexed studio, uint64 epoch);
+    event ReportReceived(bytes32 indexed workflowId, uint256 indexed marketId);
     event ForwarderUpdated(address indexed oldForwarder, address indexed newForwarder);
 
     error UnauthorizedForwarder(address caller);
 
     constructor(
-        address _rewardsDistributor,
+        address _market,
         address _keystoneForwarder
     ) Ownable(msg.sender) {
-        rewardsDistributor = IRewardsDistributor(_rewardsDistributor);
+        market = ICREsolverMarket(_market);
         keystoneForwarder = _keystoneForwarder;
     }
 
@@ -63,25 +62,17 @@ contract CREReceiver is IReceiver, Ownable {
             revert UnauthorizedForwarder(msg.sender);
         }
 
-        // Decode the resolution payload (Option 4: blinded weights)
+        // Decode the resolution payload
         (
-            address studio,
-            uint64 epoch,
+            uint256 marketId,
             address[] memory workers,
             uint256[] memory weights,
             uint8[] memory dimScores,
             bool resolution
-        ) = abi.decode(report, (address, uint64, address[], uint256[], uint8[], bool));
+        ) = abi.decode(report, (uint256, address[], uint256[], uint8[], bool));
 
-        // Forward to RewardsDistributor
-        rewardsDistributor.resolveAndDistribute(
-            studio,
-            epoch,
-            workers,
-            weights,
-            dimScores,
-            resolution
-        );
+        // Forward to CREsolverMarket
+        market.resolveMarket(marketId, workers, weights, dimScores, resolution);
 
         // Extract workflow ID from metadata for logging
         bytes32 workflowId;
@@ -89,6 +80,6 @@ contract CREReceiver is IReceiver, Ownable {
             workflowId = bytes32(metadata[:32]);
         }
 
-        emit ReportReceived(workflowId, studio, epoch);
+        emit ReportReceived(workflowId, marketId);
     }
 }

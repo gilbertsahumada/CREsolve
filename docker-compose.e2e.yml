@@ -1,0 +1,50 @@
+services:
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    entrypoint: ["anvil", "--host", "0.0.0.0"]
+    ports:
+      - "8547:8545"
+    healthcheck:
+      test: ["CMD", "cast", "block-number", "--rpc-url", "http://127.0.0.1:8545"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  agent-alpha:
+    build: ./agent
+    ports:
+      - "3101:3000"
+    environment:
+      - AGENT_PORT=3000
+      - AGENT_NAME=Alpha
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  agent-beta:
+    build: ./agent
+    ports:
+      - "3102:3000"
+    environment:
+      - AGENT_PORT=3000
+      - AGENT_NAME=Beta
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  agent-gamma:
+    build: ./agent
+    ports:
+      - "3103:3000"
+    environment:
+      - AGENT_PORT=3000
+      - AGENT_NAME=Gamma
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10

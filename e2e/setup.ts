@@ -2,13 +2,14 @@ import { ethers } from "ethers";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { waitForAnvil, waitForAgent } from "./helpers.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const RPC_URL = process.env.RPC_URL || "http://127.0.0.1:8545";
-const AGENT_PORTS = [3001, 3002, 3003];
+const RPC_URL = process.env.RPC_URL || "http://127.0.0.1:8547";
+const AGENT_PORTS = [3101, 3102, 3103];
 const AGENT_NAMES = ["Alpha", "Beta", "Gamma"];
 
 const DEMO_MARKETS = [
@@ -32,14 +33,14 @@ const DEMO_MARKETS = [
 // ─── Deterministic worker wallets (from Anvil HD path) ───────────────────────
 
 function makeWorkerWallets(count: number): ethers.HDNodeWallet[] {
-  // Use a fixed mnemonic-derived path so wallets are deterministic
   const mnemonic = ethers.Mnemonic.fromPhrase(
     "test test test test test test test test test test test junk",
   );
   const wallets: ethers.HDNodeWallet[] = [];
   for (let i = 0; i < count; i++) {
-    // Start from index 1 to avoid collision with Anvil account[0]
-    wallets.push(ethers.HDNodeWallet.fromMnemonic(mnemonic, `m/44'/60'/0'/0/${i + 1}`));
+    wallets.push(
+      ethers.HDNodeWallet.fromMnemonic(mnemonic, `m/44'/60'/0'/0/${i + 1}`),
+    );
   }
   return wallets;
 }
@@ -48,25 +49,36 @@ function makeWorkerWallets(count: number): ethers.HDNodeWallet[] {
 
 async function main() {
   console.log("╔══════════════════════════════════════════════════╗");
-  console.log("║       CREsolver Demo Setup                      ║");
+  console.log("║       CRE E2E Setup                              ║");
   console.log("╚══════════════════════════════════════════════════╝\n");
 
-  // Connect to RPC
+  // 1. Wait for Anvil
+  console.log("--- Waiting for Anvil ---");
+  await waitForAnvil(RPC_URL);
   const provider = new ethers.JsonRpcProvider(RPC_URL);
   const blockNumber = await provider.getBlockNumber();
-  console.log(`Connected to ${RPC_URL} (block #${blockNumber})\n`);
+  console.log(`  Connected to ${RPC_URL} (block #${blockNumber})\n`);
 
-  // Use Anvil account[0] as deployer, wrapped in NonceManager for sequential txs
-  const anvilMnemonic = "test test test test test test test test test test test junk";
+  // 2. Wait for agents
+  console.log("--- Waiting for agents ---");
+  for (let i = 0; i < AGENT_PORTS.length; i++) {
+    const url = `http://127.0.0.1:${AGENT_PORTS[i]}`;
+    await waitForAgent(url, AGENT_NAMES[i]);
+    console.log(`  ${AGENT_NAMES[i]} healthy at ${url}`);
+  }
+  console.log();
+
+  // 3. Deploy CREsolverMarket
+  console.log("--- Deploying CREsolverMarket ---");
+  const anvilMnemonic =
+    "test test test test test test test test test test test junk";
   const rawDeployer = ethers.HDNodeWallet.fromMnemonic(
     ethers.Mnemonic.fromPhrase(anvilMnemonic),
     "m/44'/60'/0'/0/0",
   ).connect(provider);
   const deployer = new ethers.NonceManager(rawDeployer);
-  console.log(`Deployer: ${rawDeployer.address}`);
+  console.log(`  Deployer: ${rawDeployer.address}`);
 
-  // Deploy CREsolverMarket
-  console.log("\n--- Deploying CREsolverMarket ---");
   const artifactPath = resolve(
     __dirname,
     "../contracts/out/CREsolverMarket.sol/CREsolverMarket.json",
@@ -82,15 +94,14 @@ async function main() {
   const contractAddress = await deployedContract.getAddress();
   console.log(`  Contract deployed at: ${contractAddress}`);
 
-  // Create a fresh contract instance to avoid nonce caching issues
   const contract = new ethers.Contract(contractAddress, artifact.abi, deployer);
 
-  // Authorize deployer as resolver
+  // 4. Authorize deployer as resolver
   const tx0 = await contract.setAuthorizedResolver(rawDeployer.address, true);
   await tx0.wait();
   console.log(`  Deployer authorized as resolver`);
 
-  // Create worker wallets and fund them
+  // 5. Create worker wallets and fund them
   console.log("\n--- Setting up workers ---");
   const workerWallets = makeWorkerWallets(AGENT_PORTS.length);
   const workerEndpoints = new Map<string, string>();
@@ -99,7 +110,6 @@ async function main() {
     const wallet = workerWallets[i].connect(provider);
     const endpoint = `http://127.0.0.1:${AGENT_PORTS[i]}`;
 
-    // Fund worker
     const fundTx = await deployer.sendTransaction({
       to: wallet.address,
       value: ethers.parseEther("1.0"),
@@ -112,7 +122,7 @@ async function main() {
     );
   }
 
-  // Create markets and have workers join
+  // 6. Create markets and have workers join
   console.log("\n--- Creating markets ---");
   for (let m = 0; m < DEMO_MARKETS.length; m++) {
     const market = DEMO_MARKETS[m];
@@ -126,7 +136,6 @@ async function main() {
       `  Market #${m}: "${market.question.slice(0, 50)}..." (${market.rewardEth} ETH)`,
     );
 
-    // Each worker joins each market
     for (let w = 0; w < workerWallets.length; w++) {
       const workerSigner = workerWallets[w].connect(provider);
       const workerContract = new ethers.Contract(
@@ -142,7 +151,7 @@ async function main() {
     console.log(`    ${workerWallets.length} workers joined`);
   }
 
-  // Save config for demo-run
+  // 7. Write config for tests
   const demoConfig = {
     rpcUrl: RPC_URL,
     contractAddress,
@@ -155,22 +164,22 @@ async function main() {
       port: AGENT_PORTS[i],
     })),
     marketCount: DEMO_MARKETS.length,
+    markets: DEMO_MARKETS,
   };
 
   const configPath = resolve(__dirname, "demo-config.json");
   writeFileSync(configPath, JSON.stringify(demoConfig, null, 2));
 
   console.log("\n╔══════════════════════════════════════════════════╗");
-  console.log("║  Setup complete!                                 ║");
+  console.log("║  E2E Setup complete!                             ║");
   console.log("╚══════════════════════════════════════════════════╝");
-  console.log(`\nConfig saved to: ${configPath}`);
-  console.log(`Contract: ${contractAddress}`);
-  console.log(`Markets: ${DEMO_MARKETS.length}`);
-  console.log(`Workers: ${workerWallets.length}`);
-  console.log(`\nNext: start agents and run 'yarn demo'`);
+  console.log(`  Config: ${configPath}`);
+  console.log(`  Contract: ${contractAddress}`);
+  console.log(`  Markets: ${DEMO_MARKETS.length}`);
+  console.log(`  Workers: ${workerWallets.length}\n`);
 }
 
 main().catch((err) => {
-  console.error("Setup failed:", err);
+  console.error("E2E setup failed:", err);
   process.exit(1);
 });

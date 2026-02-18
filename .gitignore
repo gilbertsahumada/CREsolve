@@ -16,6 +16,7 @@ contracts/broadcast/
 
 # Generated config
 scripts/demo-config.json
+e2e/demo-config.json
 
 # OS
 .DS_Store

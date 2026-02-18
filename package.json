@@ -1,0 +1,12 @@
+{
+  "name": "@cresolver/root",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "e2e": "yarn e2e:up && yarn e2e:setup && yarn e2e:test; yarn e2e:down",
+    "e2e:up": "docker compose -f docker-compose.e2e.yml up -d --build --wait",
+    "e2e:setup": "cd e2e && npx tsx setup.ts",
+    "e2e:test": "cd e2e && npx vitest run --config vitest.e2e.config.ts",
+    "e2e:down": "docker compose -f docker-compose.e2e.yml down"
+  }
+}

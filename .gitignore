@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Forge
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# Environment
+.env
+.env.*
+
+# Generated config
+scripts/demo-config.json
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

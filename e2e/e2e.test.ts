@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ethers } from "ethers";
 import {
   loadDemoConfig,
   createOnChainVerifier,

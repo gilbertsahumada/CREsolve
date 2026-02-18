@@ -1,11 +1,63 @@
 # v16 — Agent Prediction Market: ChaosChain + OpenClaw + Moltbook
 
-> **Estado**: Proyecto personal futuro. Documentación generada para que un LLM pueda
-> implementar el sistema completo partiendo de cero.
+> **Estado**: Fase 1 completada — infraestructura base funcional con E2E automatizado.
 >
 > **Concepto**: Agentes autónomos (via OpenClaw) interactúan en una red social de agentes
 > (Moltbook), participan en prediction markets, y ChaosChain provee la resolución
 > descentralizada con CRE + reputación multi-dimensional ERC-8004.
+
+---
+
+## 0. Progreso Actual
+
+### Fase 1: Infraestructura Base — COMPLETADA
+
+| Componente | Estado | Path |
+|-----------|--------|------|
+| `CREsolverMarket.sol` | ✅ Done | `contracts/src/CREsolverMarket.sol` |
+| `CREReceiver.sol` | ✅ Done | `contracts/src/CREReceiver.sol` |
+| Contract tests | ✅ Done | `contracts/test/CREsolverMarket.t.sol`, `CREReceiver.t.sol` |
+| Deploy script | ✅ Done | `contracts/script/Deploy.s.sol` |
+| Agent HTTP (Hono) | ✅ Done | `agent/src/` (health, /a2a/resolve, /a2a/challenge, mock+LLM) |
+| Agent tests | ✅ Done | `agent/tests/agent.test.ts` |
+| CRE Workflow (6 steps) | ✅ Done | `cre-workflow/src/` (step1-read → step6-write) |
+| Shared types | ✅ Done | `shared/types.ts` |
+| Demo scripts | ✅ Done | `scripts/setup-demo.ts`, `scripts/demo-run.ts` |
+| **E2E Sandbox (Docker)** | ✅ Done | `docker-compose.e2e.yml`, `e2e/` (12 tests) |
+
+### Fase 2: OpenClaw Integration — PENDIENTE
+
+| Componente | Estado |
+|-----------|--------|
+| Skill: `chaoschain-market` | ⬚ Pending |
+| Skill: `chaoschain-resolve` | ⬚ Pending |
+| Skill: `moltbook-social` | ⬚ Pending |
+| Skill: `market-intelligence` | ⬚ Pending |
+| Market Adapter Service | ⬚ Pending |
+
+### Fase 3: Moltbook Integration — PENDIENTE
+
+| Componente | Estado |
+|-----------|--------|
+| Moltbook API client | ⬚ Pending |
+| Event hooks (market → post) | ⬚ Pending |
+| Agent social loop test | ⬚ Pending |
+
+### Fase 4: Full Loop — PENDIENTE
+
+| Componente | Estado |
+|-----------|--------|
+| CRE workflow production (WASM/DON) | ⬚ Pending |
+| Multi-agent demo (3 agents, 3 markets) | ⬚ Pending |
+| Social → market → resolve → post loop | ⬚ Pending |
+
+### Fase 5: Polish — PENDIENTE
+
+| Componente | Estado |
+|-----------|--------|
+| UI mínima | ⬚ Pending |
+| Documentación final | ⬚ Pending |
+| Video demo | ⬚ Pending |
 
 ---
 
@@ -689,11 +741,12 @@ Mercado 3: Worker A consulta via getSummary() → average ≈ 87
 
 | Archivo | Estado | Líneas |
 |---------|--------|--------|
-| `RewardsDistributor.sol` | Modificado (resolveAndDistribute + helpers) | ~1350 |
-| `ResolutionMarketLogic.sol` | Nuevo | ~155 |
-| `CREReceiver.sol` | Nuevo | ~65 |
-| Tests | Pendiente | ~420 |
-| Deploy script | Pendiente | ~100 |
+| `RewardsDistributor.sol` | ✅ Modificado (resolveAndDistribute + helpers) | ~1350 |
+| `ResolutionMarketLogic.sol` | ✅ Nuevo | ~155 |
+| `CREReceiver.sol` | ✅ Nuevo | ~65 |
+| `CREsolverMarket.sol` | ✅ Standalone market contract | cresolver/contracts/ |
+| Tests | ✅ Done | `CREsolverMarket.t.sol`, `CREReceiver.t.sol` |
+| Deploy script | ✅ Done | `contracts/script/Deploy.s.sol` |
 
 ### 8.2 OpenClaw Skills (nuevo)
 
@@ -714,29 +767,42 @@ Mercado 3: Worker A consulta via getSummary() → average ≈ 87
 | `adapter/src/signer.ts` | Key management | ~100 |
 | `adapter/src/policies.ts` | Rate limits, max stake | ~80 |
 
-### 8.4 CRE Workflow (referencia en IMPLEMENTATION_GUIDE.md)
+### 8.4 CRE Workflow — ✅ COMPLETADO (`cre-workflow/src/`)
 
-| Archivo | Líneas |
+| Archivo | Estado |
 |---------|--------|
-| `types.ts` | ~55 |
-| `step1-read.ts` | ~115 |
-| `step2-ask.ts` | ~60 |
-| `step3-challenge.ts` | ~70 |
-| `step4-evaluate.ts` | ~50 |
-| `step5-resolve.ts` | ~50 |
-| `step6-write.ts` | ~85 |
-| `index.ts` | ~100 |
+| `types.ts` | ✅ |
+| `abi.ts` | ✅ |
+| `step1-read.ts` | ✅ |
+| `step2-ask.ts` | ✅ |
+| `step3-challenge.ts` | ✅ |
+| `step4-evaluate.ts` | ✅ |
+| `step5-resolve.ts` | ✅ |
+| `step6-write.ts` | ✅ |
+| `index.ts` (orchestrator) | ✅ |
 
-### 8.5 Worker Agent (referencia en IMPLEMENTATION_GUIDE.md)
+### 8.5 Worker Agent — ✅ COMPLETADO (`agent/src/`, TypeScript/Hono, no Python)
 
-| Archivo | Líneas |
+| Archivo | Estado |
 |---------|--------|
-| `main.py` | ~10 |
-| `config.py` | ~10 |
-| `routes/a2a.py` | ~50 |
-| `services/investigator.py` | ~80 |
-| `services/defender.py` | ~40 |
-| Tests | ~60 |
+| `index.ts` (Hono server) | ✅ |
+| `config.ts` | ✅ |
+| `routes/health.ts` | ✅ |
+| `routes/a2a.ts` | ✅ |
+| `services/investigator.ts` (mock + LLM) | ✅ |
+| `services/defender.ts` | ✅ |
+| `tests/agent.test.ts` | ✅ |
+
+### 8.6 E2E Sandbox — ✅ COMPLETADO
+
+| Archivo | Estado |
+|---------|--------|
+| `docker-compose.e2e.yml` | ✅ Anvil + 3 agents |
+| `agent/Dockerfile` | ✅ Node 20 alpine + tsx |
+| `e2e/setup.ts` | ✅ Deploy, fund, markets, join |
+| `e2e/helpers.ts` | ✅ Health poll, on-chain verify |
+| `e2e/e2e.test.ts` | ✅ 12 tests (3 markets + edge cases) |
+| `package.json` (root scripts) | ✅ `yarn e2e` one-command |
 
 ### 8.6 Moltbook Integration (nuevo)
 
@@ -831,33 +897,34 @@ Mercado 3: Worker A consulta via getSummary() → average ≈ 87
 
 ## 10. Plan de Implementación
 
-### Fase 1: Infraestructura Base (1-2 semanas)
+### Fase 1: Infraestructura Base — ✅ COMPLETADA
 
-1. Completar contratos ChaosSettler (tests, deploy script)
-2. Deploy en Base Sepolia
-3. Worker agent funcional (Python/FastAPI)
-4. CRE workflow funcional (local demo mode)
+1. ✅ Contratos ChaosSettler + CREsolverMarket (tests, deploy script)
+2. ⬚ Deploy en Base Sepolia (pendiente — funcional en Anvil local)
+3. ✅ Worker agent funcional (TypeScript/Hono, mock + LLM mode)
+4. ✅ CRE workflow funcional (local demo mode, 6 steps)
+5. ✅ E2E sandbox Docker (Anvil + 3 agents + 12 tests, `yarn e2e`)
 
-### Fase 2: OpenClaw Integration (1-2 semanas)
+### Fase 2: OpenClaw Integration — SIGUIENTE
 
 5. Escribir 4 OpenClaw skills
 6. Configurar agent workspaces
 7. Market Adapter Service (Express/Fastify)
 8. Test: agente crea mercado via skill
 
-### Fase 3: Moltbook Integration (1 semana)
+### Fase 3: Moltbook Integration
 
 9. Moltbook API client
 10. Event hooks (market events → Moltbook posts)
 11. Test: agentes discuten en Moltbook + participan en market
 
-### Fase 4: Full Loop (1-2 semanas)
+### Fase 4: Full Loop
 
 12. CRE workflow en production mode (WASM, DON)
 13. Demo: 3 agentes, 3 mercados, reputación acumulada
 14. Social layer: posts reflejan resultados de mercados
 
-### Fase 5: Polish (1 semana)
+### Fase 5: Polish
 
 15. UI mínima para visualizar (opcional)
 16. Documentación

@@ -5,10 +5,10 @@
   "scripts": {
     "e2e": "yarn e2e:up && yarn e2e:setup && yarn e2e:test; yarn e2e:down",
     "e2e:up": "docker compose -f docker-compose.e2e.yml up -d --build --wait",
-    "e2e:setup": "cd e2e && npx tsx setup.ts",
+    "e2e:setup": "cd scripts && npx tsx setup-demo.ts --profile e2e --output ../e2e/demo-config.json",
     "e2e:test": "cd e2e && npx vitest run --config vitest.e2e.config.ts",
     "e2e:down": "docker compose -f docker-compose.e2e.yml down",
-    "local:setup": "cd scripts && npx tsx setup-demo.ts",
+    "local:setup": "cd scripts && npx tsx setup-demo.ts --profile local",
     "local:demo": "cd scripts && npx tsx demo-run.ts",
     "sepolia:wallets": "cd scripts && npx tsx generate-wallets.ts",
     "sepolia:register": "cd scripts && npx tsx register-agents.ts",

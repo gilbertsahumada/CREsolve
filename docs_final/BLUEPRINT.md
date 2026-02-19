@@ -3,11 +3,11 @@
 > **Estado**: Fases 1-3 completadas. Fase 4 (Polish + Deploy) pendiente.
 >
 > **Decisiones incorporadas**:
-> - Option 4: Multi-dimensional Blinded (`weights[]` + `dimScores[]`, sin `determinations[]` on-chain)
-> - 3 dimensiones on-chain: Resolution Quality, Source Quality, Analysis Depth
-> - 5 dimensiones PoA off-chain (evaluadas en CRE TEE, no publicadas)
+> - Modelo canónico único: multi-dimensional weighted (`weights[]` + `dimScores[]`, sin `determinations[]` on-chain)
+> - Algoritmo de evaluación público en `cre-workflow/cresolver-resolution/evaluate.ts`
+> - 3 dimensiones publicadas on-chain: Resolution Quality, Source Quality, Analysis Depth
 > - Workers son oráculos descentralizados de IA (no predicen, investigan)
-> - CRE DON es el evaluador imparcial (no hay verifiers separados)
+> - CRE DON ejecuta el workflow y firma reportes (no hay verifiers separados)
 > - Challenge Q&A no se persiste (CRE stateless = privacidad)
 >
 > **Standalone**: CREsolver es autónomo. `CREsolverMarket.sol` integra mercados,
@@ -47,8 +47,8 @@
 │                                                                             │
 │  E. E2E Sandbox (Docker Compose) ✅ COMPLETADO                             │
 │     ├── docker-compose.e2e.yml — Anvil + 3 agents                          │
-│     ├── e2e/setup.ts — Deploy, fund, create markets, join                  │
-│     ├── e2e/e2e.test.ts — 12 tests (3 markets + edge cases)               │
+│     ├── scripts/setup-demo.ts --profile e2e — Deploy, fund, create/join    │
+│     ├── e2e/e2e.test.ts — 18 tests (3 markets + edge cases + receiver)    │
 │     └── yarn e2e — one-command: up → setup → test → down                   │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -175,7 +175,7 @@ incluyendo la integración opcional con ERC-8004 IdentityRegistry y ReputationRe
      │              │        └──────────────────────────────────────────────┘
 ```
 
-**Modelo de Privacidad**: Todo dentro del TEE es confidencial — votos individuales, evidencia, scores crudos, y el multiplicador de correctitud nunca salen del TEE. On-chain solo aparecen: `weights[]` (blindados), `dimScores[]` (3 dimensiones), y `resolution` (respuesta final).
+**Modelo de Ejecución y Transparencia**: El algoritmo y las dimensiones de evaluación son públicos (código abierto en `evaluate.ts`). Si se ejecuta en CRE TEE, lo confidencial en runtime son determinaciones individuales, evidencia/challenges y el `correctnessMult`. On-chain se publican `weights[]`, `dimScores[]` y `resolution`.
 
 ### Fase 4: Settlement
 
@@ -261,7 +261,7 @@ Contrato standalone que combina toda la lógica en un solo contrato:
 | `getMarket(marketId)` | Lee datos del mercado |
 | `getMarketWorkers(marketId)` | Lista workers de un mercado |
 | `getReputation(worker)` | Lee reputación promediada |
-| `getScoringCriteria()` | Devuelve 8 dimensiones de evaluación y pesos |
+| `getScoringCriteria()` | Devuelve 8 dimensiones de referencia (helper informativo, no usado en settlement) |
 
 **Structs**:
 
@@ -415,62 +415,51 @@ contract DeployScript is Script {
 
 ---
 
-## 4. Scoring Option 4: Multi-dimensional Blinded
+## 4. Scoring Canónico (Público)
 
-### 4.1 Por Qué Option 4
+### 4.1 Decisión de Diseño
 
-| Aspecto | Opción 1 (Transparente) | Opción 4 (Blinded) |
-|---------|------------------------|---------------------|
-| Votos individuales | PÚBLICO | **Oculto** (solo en CRE TEE) |
-| Quality scores | PÚBLICO (crudos) | **Pre-computados** en weights |
-| Tag ACCURATE/INACCURATE | PÚBLICO | **No existe** |
-| Dimensiones on-chain | 1 | **3** (sin precisión) |
-| Verificabilidad | Total | Parcial (confianza en CRE) |
-| Inferencia de votos | Trivial | **Ambigua** |
+- Este repo mantiene una sola estrategia de scoring.
+- No se manejan alternativas "Opción 1 vs Opción 4" en el diseño vigente.
+- El algoritmo es auditable y está definido en `cre-workflow/cresolver-resolution/evaluate.ts`.
 
-### 4.2 Qué Puede Ver un Observador On-chain
+### 4.2 Fórmulas Públicas
+
+```
+qualityScore[i] =
+  resolutionQuality[i] * 0.4 +
+  sourceQuality[i] * 0.3 +
+  analysisDepth[i] * 0.3
+
+repFactor[i] =
+  ((resQualityRep + srcQualityRep + analysisDepthRep) / 3) / 100 + 0.5, si count > 0
+  1.0, en caso contrario
+
+voteWeight[i] = qualityScore[i] * repFactor[i]
+resolution = sum(voteWeight YES) >= sum(voteWeight NO)
+
+weight[i] = qualityScore[i] * correctnessMult[i] * repFactor[i]
+correctnessMult[i] = 200 si determination[i] == resolution, 50 si no
+```
+
+### 4.3 Qué Es Público vs Qué Es Runtime
+
+| Dato | Público |
+|------|---------|
+| Algoritmo y pesos (0.4/0.3/0.3, 200/50, repFactor) | SI (repo) |
+| `dimScores[]` por worker | SI (on-chain) |
+| `weights[]` y `resolution` | SI (on-chain) |
+| Determinación individual, evidencia y challenge Q&A | SI en entorno local; confidencial si corre en CRE TEE |
+
+### 4.4 Qué Puede Ver un Observador On-chain
 
 ```
 Worker A: weight=900000, Resolution Quality=90, Source Quality=85, Analysis Depth=80
 Worker B: weight=100000, Resolution Quality=40, Source Quality=35, Analysis Depth=30
 Resolution: YES
 
-¿Worker A votó YES o NO? → NO SE PUEDE DETERMINAR con certeza
-  - weight alto podría ser: buena calidad + acertó (200x)
-  - O podría ser: calidad excelente + erró (50x) + reputación alta
-  - La ambigüedad es intencional
-```
-
-### 4.3 Fórmula de Weights (computada off-chain por CRE)
-
-```
-weight[i] = qualityScore[i] × correctnessMult[i] × reputationFactor[i]
-
-donde:
-  qualityScore:     0-100 (evaluación algorítmica en workflow)
-  correctnessMult:  200 si determination[i] == resolution, 50 si no
-  reputationFactor: (avgReputation / 100 + 0.5) si count > 0, else 1.0
-```
-
-### 4.4 Flujo Completo del Scoring
-
-```
-PASO 4 CRE (EVALUAR en TEE)                PASO 5 CRE (RESOLVER en TEE)
-─────────────────────                       ──────────────────────
-Por worker, evalúa 3 dimensiones:           Computa:
- • Resolution Quality: 88 ──────────► on-chain    peso = quality × multCorrectitud × rep
- • Source Quality: 72      ──────────► on-chain    dimScores = [resQuality, srcQuality, analysis]
- • Analysis Depth: 65      ──────────► on-chain
-
-  qualityScore = resQ×0.4 + srcQ×0.3       CONFIDENCIAL (nunca sale del TEE):
-                 + analysis×0.3              determination = true/false
-                                             correctnessMult = 200/50
-                                             qualityScore crudo
-
-                                            PÚBLICO (on-chain):
-                                             weights[] (blindados)
-                                             dimScores[] (3 dims, sin precisión)
-                                             resolution (respuesta final)
+El observador ve pesos y dimensiones por worker.
+No existe un campo determination por worker en la interfaz on-chain.
 ```
 
 ---
@@ -793,45 +782,26 @@ Mock response: determination=true, confidence=0.72
 
 ---
 
-## 10. Privacy (Chainlink CRE)
+## 10. Transparencia y Privacidad (Chainlink CRE)
 
-### 10.1 Confidential HTTP (incluido por usar CRE)
+### 10.1 Público por Diseño
 
-| Dato | Dónde vive | Privado |
+| Dato | Dónde vive | Público |
 |------|-----------|---------|
-| Determinación de cada worker | TEE de CRE | SI |
-| Evidencia y fuentes | TEE de CRE | SI |
-| Challenge Q&A | TEE de CRE | SI |
-| Scores crudos (quality) | TEE de CRE | SI |
-| Multiplicador correctitud | TEE de CRE | SI |
+| Algoritmo de evaluación (`evaluate.ts`) | Repositorio | SI |
+| Dimensiones usadas (Resolution/Source/Analysis) | Repositorio + chain | SI |
+| `dimScores[]` por worker | On-chain | SI |
+| `weights[]` y `resolution` final | On-chain | SI |
+
+### 10.2 Confidencialidad de Runtime (solo si corre en CRE TEE)
+
+| Dato | Dónde vive | Confidencial |
+|------|-----------|--------------|
+| Determinación individual de cada worker | TEE de CRE | SI |
+| Evidencia y fuentes crudas | TEE de CRE | SI |
+| Challenge Q&A detallado | TEE de CRE | SI |
+| `correctnessMult` interno | TEE de CRE | SI |
 | API keys del LLM | TEE de CRE | SI |
-
-### 10.2 Modelo Completo
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  CRE TEE (Confidential HTTP + Compute)                       │
-│                                                              │
-│  SECRETO: votos, evidencia, scores crudos, multCorrectitud  │
-│                                                              │
-│  Produce:                                                    │
-│   • weights[] (blindados)                                    │
-│   • dimScores[] (3 dimensiones, sin tag de precisión)        │
-│   • resolution (respuesta del mercado)                       │
-└──────────┬───────────────────────────┬───────────────────────┘
-           │                           │
-    ┌──────▼──────────┐      ┌─────────▼──────────────┐
-    │  REPUTACIÓN      │      │  PAGOS                  │
-    │  (pública)       │      │  (on-chain)             │
-    │                  │      │                         │
-    │  ResQuality=85   │      │  Worker A: 0.91 ETH     │
-    │  SrcQuality=72   │      │  Worker B: 0.11 ETH     │
-    │  Analysis=65     │      │                         │
-    │                  │      │  Calculado de weights[] │
-    │  Consultable     │      │  blindados              │
-    │  por cualquiera  │      │                         │
-    └──────────────────┘      └─────────────────────────┘
-```
 
 ---
 
@@ -872,7 +842,7 @@ Mock response: determination=true, confidence=0.72
 │  ═════════════════════════════════════════════════                          │
 │  ✅ docker-compose.e2e.yml — Anvil (8547) + 3 agents (3101-3103)          │
 │  ✅ agent/Dockerfile — Node 20 alpine + tsx                                │
-│  ✅ e2e/setup.ts + helpers.ts + e2e.test.ts (12 tests)                     │
+│  ✅ setup-demo.ts (profile e2e) + helpers.ts + e2e.test.ts (18 tests)      │
 │  ✅ yarn e2e — one-command: up → setup → test → down                       │
 │                                                                             │
 │  ─────────────────────────────────────────────────────────────────         │
@@ -913,7 +883,7 @@ Mock response: determination=true, confidence=0.72
 |------|-----|--------|
 | 12 | Docker Compose: Anvil (8547) + 3 agents (3101-3103) | ✅ |
 | 13 | E2E setup: deploy, fund, create markets, join | ✅ |
-| 14 | E2E tests: 12 tests (3 markets + edge cases) | ✅ |
+| 14 | E2E tests: 18 tests (3 markets + edge cases + receiver) | ✅ |
 | 15 | One-command: `yarn e2e` (up → setup → test → down) | ✅ |
 
 ### Fase 4: Polish + Submission — PENDIENTE

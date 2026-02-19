@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "setup": "tsx setup.ts",
+    "setup": "tsx ../scripts/setup-demo.ts --profile e2e --output ../e2e/demo-config.json",
     "test": "vitest run --config vitest.e2e.config.ts",
     "typecheck": "tsc --noEmit"
   },

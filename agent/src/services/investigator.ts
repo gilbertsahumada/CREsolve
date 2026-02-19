@@ -1,4 +1,4 @@
-import type { ResolveResponse } from "../../../shared/types.js";
+import type { ResolveResponse } from "../../../shared/types";
 import { config } from "../config.js";
 
 // ─── Response cache (critical for CRE consensus: all DON nodes get identical responses) ─

@@ -3,8 +3,8 @@ import {
   resolveRequestSchema,
   challengeRequestSchema,
 } from "../validation.js";
-import { investigate } from "../services/investigator.js";
-import { defend } from "../services/defender.js";
+import { investigate } from "../services/investigator";
+import { defend } from "../services/defender";
 
 export const a2aRoutes = new Hono();
 

@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { config } from "./config.js";
-import { healthRoutes } from "./routes/health.js";
-import { a2aRoutes } from "./routes/a2a.js";
+import { healthRoutes } from "./routes/health";
+import { a2aRoutes } from "./routes/a2a";
 
 export const app = new Hono();
 

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { config } from "../config.js";
+import { config } from "../config";
 
 export const healthRoutes = new Hono();
 

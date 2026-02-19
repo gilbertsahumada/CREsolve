@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { app } from "../src/index.js";
-import { clearCache as clearInvestigatorCache } from "../src/services/investigator.js";
-import { clearCache as clearDefenderCache } from "../src/services/defender.js";
+import { clearCache as clearInvestigatorCache } from "../src/services/investigator";
+import { clearCache as clearDefenderCache } from "../src/services/defender";
 
 function req(path: string, init?: RequestInit) {
   return app.request(path, init);

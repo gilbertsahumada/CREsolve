@@ -25,7 +25,7 @@ contract CREReceiverTest is Test {
     }
 
     function setUp() public {
-        market = new CREsolverMarket();
+        market = new CREsolverMarket(address(0), address(0));
         receiver = new CREReceiver(address(market), forwarder);
 
         // Authorize the receiver as a resolver on the market
@@ -36,11 +36,11 @@ contract CREReceiverTest is Test {
 
         vm.deal(worker1, 1 ether);
         vm.prank(worker1);
-        market.joinMarket{value: 0.05 ether}(0);
+        market.joinMarket{value: 0.05 ether}(0, 0);
 
         vm.deal(worker2, 1 ether);
         vm.prank(worker2);
-        market.joinMarket{value: 0.05 ether}(0);
+        market.joinMarket{value: 0.05 ether}(0, 0);
     }
 
     // ─── Happy path ──────────────────────────────────────────────────

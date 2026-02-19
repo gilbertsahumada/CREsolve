@@ -10,10 +10,10 @@
 
 | Sección | Componente | Estado | Notas |
 |---------|-----------|--------|-------|
-| A | CREsolverMarket.sol | ✅ | Standalone market + staking + escrow + reputation |
+| A | CREsolverMarket.sol | ✅ | Standalone market + staking + escrow + reputation + ERC-8004 |
 | B | CREReceiver.sol | ✅ | KeystoneForwarder bridge |
 | C | ReceiverTemplate.sol + IReceiver.sol | ✅ | Base contract + interface |
-| D | CREsolverMarket.t.sol | ✅ | 16 tests |
+| D | CREsolverMarket.t.sol | ✅ | 27 tests (including 3 ERC-8004) |
 | E | CREReceiver.t.sol | ✅ | 9 tests |
 | F | Deploy.s.sol | ✅ | Deploy script |
 | G | CRE Workflow | ✅ | main.ts + types.ts + agents.ts + evm.ts + evaluate.ts |
@@ -39,7 +39,10 @@ cresolver/
 │   │   ├── CREReceiver.sol             # Keystone bridge → resolveMarket
 │   │   └── interfaces/
 │   │       ├── IReceiver.sol           # ERC165 interface
-│   │       └── ReceiverTemplate.sol    # Base CRE receiver
+│   │       ├── ReceiverTemplate.sol    # Base CRE receiver
+│   │       └── erc8004/
+│   │           ├── IERC8004IdentityV1.sol  # ERC-8004 Identity interface
+│   │           └── IERC8004Reputation.sol  # ERC-8004 Reputation interface
 │   ├── test/
 │   │   ├── CREsolverMarket.t.sol       # 16 tests
 │   │   └── CREReceiver.t.sol           # 9 tests
@@ -139,41 +142,39 @@ pragma solidity ^0.8.24;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC8004IdentityV1} from "./interfaces/erc8004/IERC8004IdentityV1.sol";
+import {IERC8004Reputation} from "./interfaces/erc8004/IERC8004Reputation.sol";
 
 contract CREsolverMarket is Ownable, ReentrancyGuard {
     // ─── Structs ───────────────────────────────────────────────────────
-    struct Market {
-        string question;
-        uint256 rewardPool;
-        uint256 deadline;
-        address creator;
-        bool resolved;
-    }
+    struct Market { ... }
+    struct Reputation { ... }
 
-    struct Reputation {
-        uint256 resQualitySum;
-        uint256 srcQualitySum;
-        uint256 analysisDepthSum;
-        uint256 count;
-    }
+    // ─── ERC-8004 Registries (optional, address(0) = disabled) ────────
+    IERC8004IdentityV1 public immutable identityRegistry;
+    IERC8004Reputation public immutable reputationRegistry;
 
     // ─── State ─────────────────────────────────────────────────────────
     mapping(uint256 => Market) public markets;
     uint256 public marketCount;
     mapping(uint256 => mapping(address => uint256)) public stakes;
     mapping(uint256 => address[]) internal _marketWorkers;
+    mapping(uint256 => mapping(address => uint256)) public workerAgentIds; // ERC-8004 agent IDs
     mapping(address => uint256) public balances;
     mapping(address => bool) public authorizedResolvers;
     mapping(address => Reputation) public reputation;
     uint256 public minStake = 0.01 ether;
     uint256 public constant MAX_WORKERS = 10;
 
+    // ─── Constructor ───────────────────────────────────────────────────
+    constructor(address _identityRegistry, address _reputationRegistry) Ownable(msg.sender) { ... }
+
     // ─── Core Functions ────────────────────────────────────────────────
 
     function createMarket(string calldata question, uint256 duration)
         external payable returns (uint256 marketId);
 
-    function joinMarket(uint256 marketId) external payable;
+    function joinMarket(uint256 marketId, uint256 agentId) external payable;
 
     function resolveMarket(
         uint256 marketId,
@@ -201,11 +202,18 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
 
 **Key implementation details**:
 
+- **Constructor**: Accepts optional `_identityRegistry` and `_reputationRegistry` addresses. Pass `address(0)` to disable either.
 - `createMarket`: Creates market with `msg.value` as reward pool, `block.timestamp + duration` as deadline
-- `joinMarket`: Worker stakes ETH (≥ minStake), stored in `stakes[marketId][worker]`
-- `resolveMarket`: Only callable by `authorizedResolvers`. Validates arrays match, workers registered, market not resolved. Distributes `rewardPool × weight[i] / totalWeight + stake[i]` to each worker's `balances`. Updates running-average reputation across 3 dimensions.
+- `joinMarket`: Worker stakes ETH (≥ minStake). If `identityRegistry != address(0)`, verifies `isAuthorizedOrOwner(msg.sender, agentId)` and stores `workerAgentIds[marketId][worker] = agentId`.
+- `resolveMarket`: Only callable by `authorizedResolvers`. Validates arrays match, workers registered, market not resolved. Distributes `rewardPool × weight[i] / totalWeight + stake[i]` to each worker's `balances`. Updates running-average reputation across 3 dimensions. If `reputationRegistry != address(0)`, publishes `giveFeedback()` to ERC-8004 for each worker with a registered agentId.
 - `requestResolution`: Emits `ResolutionRequested(marketId, question)` event for CRE EVM Log Trigger
 - `withdraw`: Pull-payment pattern with ReentrancyGuard
+
+**ERC-8004 Integration**:
+- Both registries are **optional** (`address(0)` = disabled) — E2E and demo run without them
+- `identityRegistry.isAuthorizedOrOwner()` checks agent ownership on join
+- `reputationRegistry.giveFeedback()` publishes avg score across 3 dims after resolution
+- Sepolia addresses: Identity `0x8004A818BFB912233c491871b3d84c89A494BD9e`, Reputation `0x8004B663056A597Dffe9eCcC1965A193B7388713`
 
 **Validations in resolveMarket**:
 1. `!m.resolved` — Not already resolved
@@ -331,11 +339,13 @@ contract DeployScript is Script {
     function run() external {
         address keystoneForwarder = vm.envOr("KEYSTONE_FORWARDER", address(0));
         address directResolver = vm.envOr("DIRECT_RESOLVER", address(0));
+        address identityReg = vm.envOr("ERC8004_IDENTITY", address(0));
+        address reputationReg = vm.envOr("ERC8004_REPUTATION", address(0));
 
         vm.startBroadcast();
 
-        // 1. Deploy CREsolverMarket
-        CREsolverMarket market = new CREsolverMarket();
+        // 1. Deploy CREsolverMarket (ERC-8004 registries optional)
+        CREsolverMarket market = new CREsolverMarket(identityReg, reputationReg);
 
         // 2. Deploy CREReceiver
         CREReceiver receiver = new CREReceiver(address(market), keystoneForwarder);
@@ -355,11 +365,16 @@ contract DeployScript is Script {
 
 Usage:
 ```bash
-# Local (Anvil)
+# Local (Anvil) — no ERC-8004
 forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
 
 # With direct resolver for demo
 DIRECT_RESOLVER=0x... forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
+
+# Sepolia with ERC-8004 registries
+ERC8004_IDENTITY=0x8004A818BFB912233c491871b3d84c89A494BD9e \
+ERC8004_REPUTATION=0x8004B663056A597Dffe9eCcC1965A193B7388713 \
+forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC --broadcast
 ```
 
 ---
@@ -368,7 +383,10 @@ DIRECT_RESOLVER=0x... forge script script/Deploy.s.sol --rpc-url http://localhos
 
 ### B.1 CREsolverMarket.t.sol
 
-**File**: `contracts/test/CREsolverMarket.t.sol` — 16 tests
+**File**: `contracts/test/CREsolverMarket.t.sol` — 27 tests
+
+**Setup**: `market = new CREsolverMarket(address(0), address(0))` — runs without ERC-8004 by default.
+All `joinMarket` calls use `agentId=0`: `market.joinMarket{value: 0.05 ether}(marketId, 0)`.
 
 | Test | What It Validates |
 |------|-------------------|
@@ -380,9 +398,12 @@ DIRECT_RESOLVER=0x... forge script script/Deploy.s.sol --rpc-url http://localhos
 | `test_joinMarket_reverts_below_min_stake` | BelowMinStake error |
 | `test_joinMarket_reverts_market_not_active` | MarketNotActive after deadline |
 | `test_joinMarket_reverts_already_joined` | AlreadyJoined error |
+| `test_joinMarket_with_identity_registry` | ERC-8004 identity check passes (vm.mockCall) |
+| `test_joinMarket_reverts_not_agent_owner` | NotAgentOwner when identity check fails |
 | `test_resolveMarket_happy_path` | 70/30 weight split → correct rewards + stakes |
 | `test_resolveMarket_returns_stakes` | 50/50 split → stakes returned |
 | `test_resolveMarket_publishes_reputation` | 3 dimensions stored correctly |
+| `test_resolveMarket_publishes_erc8004_feedback` | giveFeedback() called with correct avg scores |
 | `test_resolveMarket_reverts_unauthorized` | Unauthorized caller |
 | `test_resolveMarket_reverts_already_resolved` | AlreadyResolved error |
 | `test_resolveMarket_reverts_too_many_workers` | TooManyWorkers (>10) |
@@ -746,10 +767,10 @@ services:
 
 1. Wait for Anvil to be ready (polls block number)
 2. Wait for 3 agents to be healthy (polls `/health`)
-3. Deploy `CREsolverMarket` using Anvil's HD wallet deployer
+3. Deploy `CREsolverMarket(ethers.ZeroAddress, ethers.ZeroAddress)` — no ERC-8004 for E2E
 4. Authorize deployer as resolver (for E2E without CRE DON)
 5. Create 3 demo markets with reward pools (0.1, 0.05, 0.08 ETH)
-6. Have 3 workers join each market with 0.01 ETH stake
+6. Have 3 workers join each market with `joinMarket(m, 0, { value: ... })` — agentId=0
 7. Write `demo-config.json` with addresses and config
 
 ### E.3 Helpers (helpers.ts)

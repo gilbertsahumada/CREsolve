@@ -9,11 +9,13 @@ contract DeployScript is Script {
     function run() external {
         address keystoneForwarder = vm.envOr("KEYSTONE_FORWARDER", address(0));
         address directResolver = vm.envOr("DIRECT_RESOLVER", address(0));
+        address identityReg = vm.envOr("ERC8004_IDENTITY", address(0));
+        address reputationReg = vm.envOr("ERC8004_REPUTATION", address(0));
 
         vm.startBroadcast();
 
         // 1. Deploy CREsolverMarket
-        CREsolverMarket market = new CREsolverMarket();
+        CREsolverMarket market = new CREsolverMarket(identityReg, reputationReg);
         console.log("CREsolverMarket deployed at:", address(market));
 
         // 2. Deploy CREReceiver

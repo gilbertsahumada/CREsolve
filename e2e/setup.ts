@@ -89,7 +89,7 @@ async function main() {
     marketArtifact.bytecode.object,
     deployer,
   );
-  const deployedMarket = await marketFactory.deploy();
+  const deployedMarket = await marketFactory.deploy(ethers.ZeroAddress, ethers.ZeroAddress);
   await deployedMarket.waitForDeployment();
   const contractAddress = await deployedMarket.getAddress();
   console.log(`  CREsolverMarket deployed at: ${contractAddress}`);
@@ -165,7 +165,7 @@ async function main() {
         marketArtifact.abi,
         workerSigner,
       );
-      const joinTx = await workerContract.joinMarket(m, {
+      const joinTx = await workerContract.joinMarket(m, 0, {
         value: ethers.parseEther("0.01"),
       });
       await joinTx.wait();

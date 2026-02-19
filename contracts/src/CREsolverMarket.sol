@@ -3,6 +3,8 @@ pragma solidity ^0.8.24;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC8004IdentityV1} from "./interfaces/erc8004/IERC8004IdentityV1.sol";
+import {IERC8004Reputation} from "./interfaces/erc8004/IERC8004Reputation.sol";
 
 /**
  * @title CREsolverMarket
@@ -27,12 +29,17 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         uint256 count;
     }
 
+    // ─── ERC-8004 Registries (optional, address(0) = disabled) ────────
+    IERC8004IdentityV1 public immutable identityRegistry;
+    IERC8004Reputation public immutable reputationRegistry;
+
     // ─── State ─────────────────────────────────────────────────────────
     mapping(uint256 => Market) public markets;
     uint256 public marketCount;
 
     mapping(uint256 => mapping(address => uint256)) public stakes;
     mapping(uint256 => address[]) internal _marketWorkers;
+    mapping(uint256 => mapping(address => uint256)) public workerAgentIds;
 
     mapping(address => uint256) public balances;
     mapping(address => bool) public authorizedResolvers;
@@ -44,7 +51,7 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
 
     // ─── Events ────────────────────────────────────────────────────────
     event MarketCreated(uint256 indexed marketId, address indexed creator, string question, uint256 rewardPool, uint256 deadline);
-    event WorkerJoined(uint256 indexed marketId, address indexed worker, uint256 stake);
+    event WorkerJoined(uint256 indexed marketId, address indexed worker, uint256 stake, uint256 agentId);
     event MarketResolved(uint256 indexed marketId, address indexed resolver, bool resolution);
     event ResolverUpdated(address indexed resolver, bool authorized);
     event ReputationUpdated(address indexed worker, uint256 resQuality, uint256 srcQuality, uint256 analysisDepth, uint256 count);
@@ -67,9 +74,13 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     error MarketDoesNotExist(uint256 marketId);
     error MarketAlreadyResolved(uint256 marketId);
     error NotMarketCreator(uint256 marketId, address caller);
+    error NotAgentOwner(address caller, uint256 agentId);
 
     // ─── Constructor ───────────────────────────────────────────────────
-    constructor() Ownable(msg.sender) {}
+    constructor(address _identityRegistry, address _reputationRegistry) Ownable(msg.sender) {
+        identityRegistry = IERC8004IdentityV1(_identityRegistry);
+        reputationRegistry = IERC8004Reputation(_reputationRegistry);
+    }
 
     // ─── Core Functions ────────────────────────────────────────────────
 
@@ -99,16 +110,24 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     /**
      * @notice Join an active market as a worker by staking ETH
      * @param marketId The market to join
+     * @param agentId The ERC-8004 agent ID (0 if identity registry is disabled)
      */
-    function joinMarket(uint256 marketId) external payable {
+    function joinMarket(uint256 marketId, uint256 agentId) external payable {
         if (!isMarketActive(marketId)) revert MarketNotActive(marketId);
         if (msg.value < minStake) revert BelowMinStake(msg.value, minStake);
         if (stakes[marketId][msg.sender] > 0) revert AlreadyJoined(marketId, msg.sender);
 
+        // ERC-8004 identity check (only if registry is set)
+        if (address(identityRegistry) != address(0)) {
+            if (!identityRegistry.isAuthorizedOrOwner(msg.sender, agentId))
+                revert NotAgentOwner(msg.sender, agentId);
+            workerAgentIds[marketId][msg.sender] = agentId;
+        }
+
         stakes[marketId][msg.sender] = msg.value;
         _marketWorkers[marketId].push(msg.sender);
 
-        emit WorkerJoined(marketId, msg.sender, msg.value);
+        emit WorkerJoined(marketId, msg.sender, msg.value, agentId);
     }
 
     /**
@@ -134,7 +153,7 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         }
 
         _distributeRewards(marketId, workers, weights, totalWeight);
-        _updateReputation(workers, dimScores);
+        _updateReputation(marketId, workers, dimScores);
 
         markets[marketId].resolved = true;
 
@@ -178,6 +197,7 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     }
 
     function _updateReputation(
+        uint256 marketId,
         address[] calldata workers,
         uint8[] calldata dimScores
     ) internal {
@@ -197,6 +217,30 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
                 rep.analysisDepthSum / rep.count,
                 rep.count
             );
+        }
+
+        // Publish to ERC-8004 ReputationRegistry (if configured)
+        if (address(reputationRegistry) != address(0)) {
+            for (uint256 i; i < workers.length; i++) {
+                uint256 agentId = workerAgentIds[marketId][workers[i]];
+                if (agentId == 0) continue;
+
+                uint256 baseIdx = i * 3;
+                int128 avgScore = int128(int256(
+                    (uint256(dimScores[baseIdx]) + uint256(dimScores[baseIdx + 1]) + uint256(dimScores[baseIdx + 2])) / 3
+                ));
+
+                reputationRegistry.giveFeedback(
+                    agentId,
+                    avgScore,
+                    0,
+                    "resolution",
+                    "cresolver",
+                    "",
+                    "",
+                    bytes32(0)
+                );
+            }
         }
     }
 

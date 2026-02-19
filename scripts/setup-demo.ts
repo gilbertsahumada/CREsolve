@@ -77,7 +77,7 @@ async function main() {
     artifact.bytecode.object,
     deployer,
   );
-  const deployedContract = await factory.deploy();
+  const deployedContract = await factory.deploy(ethers.ZeroAddress, ethers.ZeroAddress);
   await deployedContract.waitForDeployment();
   const contractAddress = await deployedContract.getAddress();
   console.log(`  Contract deployed at: ${contractAddress}`);
@@ -134,7 +134,7 @@ async function main() {
         artifact.abi,
         workerSigner,
       );
-      const joinTx = await workerContract.joinMarket(m, {
+      const joinTx = await workerContract.joinMarket(m, 0, {
         value: ethers.parseEther("0.01"),
       });
       await joinTx.wait();

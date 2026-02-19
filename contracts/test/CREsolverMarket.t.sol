@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {CREsolverMarket} from "../src/CREsolverMarket.sol";
+import {IERC8004Reputation} from "../src/interfaces/erc8004/IERC8004Reputation.sol";
 
 contract CREsolverMarketTest is Test {
     CREsolverMarket public market;
@@ -14,7 +15,7 @@ contract CREsolverMarketTest is Test {
     address worker3 = makeAddr("worker3");
 
     function setUp() public {
-        market = new CREsolverMarket();
+        market = new CREsolverMarket(address(0), address(0));
         market.setAuthorizedResolver(resolver, true);
     }
 
@@ -55,7 +56,7 @@ contract CREsolverMarketTest is Test {
 
         vm.deal(worker1, 1 ether);
         vm.prank(worker1);
-        market.joinMarket{value: 0.05 ether}(0);
+        market.joinMarket{value: 0.05 ether}(0, 0);
 
         assertEq(market.stakes(0, worker1), 0.05 ether);
 
@@ -70,7 +71,7 @@ contract CREsolverMarketTest is Test {
         vm.deal(worker1, 1 ether);
         vm.prank(worker1);
         vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.BelowMinStake.selector, 0.001 ether, 0.01 ether));
-        market.joinMarket{value: 0.001 ether}(0);
+        market.joinMarket{value: 0.001 ether}(0, 0);
     }
 
     function test_joinMarket_reverts_market_not_active() public {
@@ -82,7 +83,7 @@ contract CREsolverMarketTest is Test {
         vm.deal(worker1, 1 ether);
         vm.prank(worker1);
         vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.MarketNotActive.selector, 0));
-        market.joinMarket{value: 0.05 ether}(0);
+        market.joinMarket{value: 0.05 ether}(0, 0);
     }
 
     function test_joinMarket_reverts_already_joined() public {
@@ -90,10 +91,10 @@ contract CREsolverMarketTest is Test {
 
         vm.deal(worker1, 1 ether);
         vm.startPrank(worker1);
-        market.joinMarket{value: 0.05 ether}(0);
+        market.joinMarket{value: 0.05 ether}(0, 0);
 
         vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.AlreadyJoined.selector, 0, worker1));
-        market.joinMarket{value: 0.05 ether}(0);
+        market.joinMarket{value: 0.05 ether}(0, 0);
         vm.stopPrank();
     }
 
@@ -104,11 +105,11 @@ contract CREsolverMarketTest is Test {
 
         vm.deal(worker1, 1 ether);
         vm.prank(worker1);
-        market.joinMarket{value: 0.05 ether}(marketId);
+        market.joinMarket{value: 0.05 ether}(marketId, 0);
 
         vm.deal(worker2, 1 ether);
         vm.prank(worker2);
-        market.joinMarket{value: 0.05 ether}(marketId);
+        market.joinMarket{value: 0.05 ether}(marketId, 0);
     }
 
     function test_resolveMarket_happy_path() public {
@@ -248,7 +249,7 @@ contract CREsolverMarketTest is Test {
             weights[i] = 1000;
             vm.deal(workers[i], 1 ether);
             vm.prank(workers[i]);
-            market.joinMarket{value: 0.05 ether}(0);
+            market.joinMarket{value: 0.05 ether}(0, 0);
         }
 
         vm.prank(resolver);
@@ -276,7 +277,7 @@ contract CREsolverMarketTest is Test {
 
         vm.deal(worker1, 1 ether);
         vm.prank(worker1);
-        market.joinMarket{value: 0.05 ether}(0);
+        market.joinMarket{value: 0.05 ether}(0, 0);
 
         address[] memory workers = new address[](2);
         workers[0] = worker1;
@@ -408,9 +409,9 @@ contract CREsolverMarketTest is Test {
         uint256 id2 = market.createMarket{value: 2 ether}("Q2?", 1 days);
 
         vm.prank(worker1);
-        market.joinMarket{value: 0.05 ether}(id2);
+        market.joinMarket{value: 0.05 ether}(id2, 0);
         vm.prank(worker2);
-        market.joinMarket{value: 0.05 ether}(id2);
+        market.joinMarket{value: 0.05 ether}(id2, 0);
 
         uint8[] memory dimScores2 = new uint8[](6);
         dimScores2[0] = 100; dimScores2[1] = 80; dimScores2[2] = 60;
@@ -432,5 +433,110 @@ contract CREsolverMarketTest is Test {
         assertEq(s2, 60);
         assertEq(a2, 40);
         assertEq(c2, 2);
+    }
+
+    // ─── ERC-8004 Identity Registry ─────────────────────────────────
+
+    function test_joinMarket_with_identity_registry() public {
+        address mockIdentity = makeAddr("identityRegistry");
+        CREsolverMarket marketWithId = new CREsolverMarket(mockIdentity, address(0));
+        marketWithId.setAuthorizedResolver(resolver, true);
+        marketWithId.createMarket{value: 1 ether}("Q?", 1 days);
+
+        // Mock isAuthorizedOrOwner to return true for worker1 with agentId=42
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)")), worker1, uint256(42)),
+            abi.encode(true)
+        );
+
+        vm.deal(worker1, 1 ether);
+        vm.prank(worker1);
+        marketWithId.joinMarket{value: 0.05 ether}(0, 42);
+
+        assertEq(marketWithId.stakes(0, worker1), 0.05 ether);
+        assertEq(marketWithId.workerAgentIds(0, worker1), 42);
+    }
+
+    function test_joinMarket_reverts_not_agent_owner() public {
+        address mockIdentity = makeAddr("identityRegistry");
+        CREsolverMarket marketWithId = new CREsolverMarket(mockIdentity, address(0));
+        marketWithId.createMarket{value: 1 ether}("Q?", 1 days);
+
+        // Mock isAuthorizedOrOwner to return false
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)")), worker1, uint256(99)),
+            abi.encode(false)
+        );
+
+        vm.deal(worker1, 1 ether);
+        vm.prank(worker1);
+        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.NotAgentOwner.selector, worker1, 99));
+        marketWithId.joinMarket{value: 0.05 ether}(0, 99);
+    }
+
+    function test_resolveMarket_publishes_erc8004_feedback() public {
+        address mockIdentity = makeAddr("identityRegistry");
+        address mockReputation = makeAddr("reputationRegistry");
+        CREsolverMarket marketWithRep = new CREsolverMarket(mockIdentity, mockReputation);
+        marketWithRep.setAuthorizedResolver(resolver, true);
+        marketWithRep.createMarket{value: 1 ether}("Q?", 1 days);
+
+        // Mock identity checks
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)"))),
+            abi.encode(true)
+        );
+
+        // Workers join with agent IDs
+        vm.deal(worker1, 1 ether);
+        vm.prank(worker1);
+        marketWithRep.joinMarket{value: 0.05 ether}(0, 10);
+
+        vm.deal(worker2, 1 ether);
+        vm.prank(worker2);
+        marketWithRep.joinMarket{value: 0.05 ether}(0, 20);
+
+        // Mock giveFeedback calls
+        vm.mockCall(
+            mockReputation,
+            abi.encodeWithSelector(bytes4(keccak256("giveFeedback(uint256,int128,uint8,string,string,string,string,bytes32)"))),
+            abi.encode()
+        );
+
+        address[] memory workers = new address[](2);
+        workers[0] = worker1;
+        workers[1] = worker2;
+
+        uint256[] memory weights = new uint256[](2);
+        weights[0] = 5000;
+        weights[1] = 5000;
+
+        uint8[] memory dimScores = new uint8[](6);
+        dimScores[0] = 80; dimScores[1] = 70; dimScores[2] = 60;
+        dimScores[3] = 90; dimScores[4] = 85; dimScores[5] = 75;
+
+        // Expect giveFeedback calls for both workers
+        // Worker1: avg = (80+70+60)/3 = 70
+        vm.expectCall(
+            mockReputation,
+            abi.encodeCall(
+                IERC8004Reputation.giveFeedback,
+                (10, int128(70), 0, "resolution", "cresolver", "", "", bytes32(0))
+            )
+        );
+        // Worker2: avg = (90+85+75)/3 = 83
+        vm.expectCall(
+            mockReputation,
+            abi.encodeCall(
+                IERC8004Reputation.giveFeedback,
+                (20, int128(83), 0, "resolution", "cresolver", "", "", bytes32(0))
+            )
+        );
+
+        vm.prank(resolver);
+        marketWithRep.resolveMarket(0, workers, weights, dimScores, true);
     }
 }

@@ -56,76 +56,188 @@
 
 ---
 
-## 2. Diagrama de Secuencia Completo
+## 2. Flujo Completo End-to-End
+
+El siguiente diagrama muestra las 5 fases del ciclo de vida de un mercado CREsolver,
+incluyendo la integración opcional con ERC-8004 IdentityRegistry y ReputationRegistry.
+
+### Fase 1: Setup
 
 ```
-┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-│ Creador  │ │ Worker A │ │ Worker B │ │ CRE DON  │ │CREReceiver│ │CREsolver │
-│          │ │          │ │          │ │  (TEE)   │ │          │ │  Market  │
-└────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘
-     │              │              │              │              │              │
-     │ ══════════ FASE 1: SETUP ════════════     │              │              │
-     │              │              │              │              │              │
-     │  createMarket{value: 1 ETH, "¿SEC ETF?", 7 days}        │              │
-     │──────────────────────────────────────────────────────────────────────────>
-     │  → marketId  │              │              │              │              │
-     │              │              │              │              │              │
-     │              │  joinMarket{value: 0.01 ETH, marketId}    │              │
-     │              │──────────────────────────────────────────────────────────>
-     │              │              │              │              │              │
-     │              │              │  joinMarket{value: 0.01 ETH}│              │
-     │              │              │──────────────────────────────────────────>│
-     │              │              │              │              │              │
-     │ ══════════ FASE 2: CRE RESOLUTION ═══════ │              │              │
-     │              │              │              │              │              │
-     │              │              │              │  Step 1: READ│              │
-     │              │              │              │─────────────────────────────>
-     │              │              │              │  workers,    │              │
-     │              │              │              │  stakes,     │              │
-     │              │              │              │  reputations │              │
-     │              │              │              │              │              │
-     │              │              │              │  Step 2: ASK │              │
-     │              │  POST /a2a/resolve          │              │              │
-     │              │<────────────────────────────│              │              │
-     │              │  {determination, evidence}  │              │              │
-     │              │              │              │              │              │
-     │              │              │  POST /resolve│             │              │
-     │              │              │<─────────────│              │              │
-     │              │              │              │              │              │
-     │              │              │              │  Step 3: CHALLENGE          │
-     │              │  POST /a2a/challenge         │              │              │
-     │              │<────────────────────────────│              │              │
-     │              │  {responses} │              │              │              │
-     │              │              │  POST /challenge             │              │
-     │              │              │<─────────────│              │              │
-     │              │              │              │              │              │
-     │              │              │              │  Step 4: EVALUATE           │
-     │              │              │              │  (LLM in TEE)│              │
-     │              │              │              │  A: quality=90              │
-     │              │              │              │  B: quality=40              │
-     │              │              │              │              │              │
-     │              │              │              │  Step 5: RESOLVE            │
-     │              │              │              │  vote: YES>NO│              │
-     │              │              │              │  weights[]=  │              │
-     │              │              │              │  [900000,    │              │
-     │              │              │              │   100000]    │              │
-     │              │              │              │              │              │
-     │              │              │              │  Step 6: WRITE              │
-     │              │              │              │──runtime.report()──>        │
-     │              │              │              │              │  onReport()  │
-     │              │              │              │              │──────────────>
-     │              │              │              │              │ resolveMarket│
-     │              │              │              │              │              │
-     │ ══════════ FASE 3: WITHDRAW ═════════════ │              │              │
-     │              │              │              │              │              │
-     │              │  withdraw()  │              │              │              │
-     │              │──────────────────────────────────────────────────────────>
-     │              │  0.88 ETH + 0.01 ETH stake │              │              │
-     │              │              │              │              │              │
-     │              │              │  withdraw()  │              │              │
-     │              │              │──────────────────────────────────────────>│
-     │              │              │  0.10 ETH + 0.01 ETH stake │              │
-     │              │              │              │              │              │
+┌──────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────────┐
+│ Deployer │    │ ERC-8004     │    │ CREsolver    │    │ Workers          │
+│          │    │ Identity     │    │ Market       │    │ (Agents)         │
+│          │    │ (optional)   │    │              │    │                  │
+└────┬─────┘    └──────┬───────┘    └──────┬───────┘    └────────┬─────────┘
+     │                 │                   │                     │
+     │  deploy(identityReg, reputationReg) │                     │
+     │────────────────────────────────────>│                     │
+     │                 │                   │                     │
+     │  Creador: createMarket{value, question, duration}        │
+     │────────────────────────────────────>│                     │
+     │  ← marketId     │                   │                     │
+     │                 │                   │                     │
+     │                 │  (si ERC-8004)    │                     │
+     │                 │  register()       │                     │
+     │                 │<─────────────────────────────────────── │
+     │                 │  ← agentId        │                     │
+     │                 │                   │                     │
+     │                 │                   │  joinMarket(marketId, agentId)
+     │                 │                   │<────────────────────│
+     │                 │  isAuthorizedOrOwner(worker, agentId)?  │
+     │                 │<──────────────────│                     │
+     │                 │──true────────────>│                     │
+     │                 │                   │  ← stake locked     │
+     │                 │                   │                     │
+```
+
+- **ERC-8004 Identity** es opcional: si `identityRegistry == address(0)`, `joinMarket` acepta cualquier address con `agentId=0`
+- Si está habilitado, el contrato verifica `isAuthorizedOrOwner(msg.sender, agentId)` y almacena el mapping `workerAgentIds[marketId][worker] = agentId`
+
+### Fase 2: Trigger
+
+```
+┌──────────┐    ┌──────────────┐    ┌──────────────┐
+│ Creador  │    │ CREsolver    │    │ CRE EVM      │
+│ / Owner  │    │ Market       │    │ Log Trigger   │
+└────┬─────┘    └──────┬───────┘    └──────┬────────┘
+     │                 │                   │
+     │  requestResolution(marketId)        │
+     │────────────────>│                   │
+     │                 │                   │
+     │                 │  emit ResolutionRequested(marketId, question)
+     │                 │──────────────────>│
+     │                 │                   │  triggers CRE workflow
+     │                 │                   │
+```
+
+### Fase 3: Resolution (CRE TEE) — Pipeline de 6 Steps
+
+```
+┌──────────┐  ┌──────────┐  ┌──────────────────────────────────────────────┐
+│ Worker A │  │ Worker B │  │              CRE DON (TEE)                    │
+│ (Agent)  │  │ (Agent)  │  │                                              │
+└────┬─────┘  └────┬─────┘  │  ┌─────────────────────────────────────────┐ │
+     │              │        │  │ Step 1: READ                            │ │
+     │              │        │  │  → getMarket(), getMarketWorkers()      │ │
+     │              │        │  │  → stakes[], reputation[] from chain    │ │
+     │              │        │  └─────────────────────────────────────────┘ │
+     │              │        │                                              │
+     │              │        │  ┌─────────────────────────────────────────┐ │
+     │              │        │  │ Step 2: ASK (Confidential HTTP)         │ │
+     │  POST /a2a/resolve    │  │  Cada worker es consultado              │ │
+     │<──────────────────────│  │  INDIVIDUALMENTE — los workers          │ │
+     │  {determination,      │  │  NO pueden ver las respuestas           │ │
+     │   evidence, sources}  │  │  de otros workers.                      │ │
+     │              │        │  │                                          │ │
+     │              │  POST /a2a/resolve                                    │
+     │              │<───────│  │  Privacy: agent A no sabe qué           │ │
+     │              │        │  │  respondió agent B (y viceversa)        │ │
+     │              │        │  └─────────────────────────────────────────┘ │
+     │              │        │                                              │
+     │              │        │  ┌─────────────────────────────────────────┐ │
+     │              │        │  │ Step 3: CHALLENGE                       │ │
+     │  POST /a2a/challenge  │  │  Genera preguntas basadas en            │ │
+     │<──────────────────────│  │  desacuerdos entre workers              │ │
+     │  {responses}  │       │  │  (sin revelar quién dijo qué)           │ │
+     │              │  POST /a2a/challenge                                  │
+     │              │<───────│  │                                          │ │
+     │              │        │  └─────────────────────────────────────────┘ │
+     │              │        │                                              │
+     │              │        │  ┌─────────────────────────────────────────┐ │
+     │              │        │  │ Step 4: EVALUATE (in TEE)               │ │
+     │              │        │  │  Por worker evalúa 3 dimensiones:       │ │
+     │              │        │  │  • Resolution Quality (0-100)           │ │
+     │              │        │  │  • Source Quality (0-100)               │ │
+     │              │        │  │  • Analysis Depth (0-100)               │ │
+     │              │        │  │  qualityScore = resQ×0.4 + srcQ×0.3    │ │
+     │              │        │  │                + analysis×0.3           │ │
+     │              │        │  └─────────────────────────────────────────┘ │
+     │              │        │                                              │
+     │              │        │  ┌─────────────────────────────────────────┐ │
+     │              │        │  │ Step 5: RESOLVE (in TEE)                │ │
+     │              │        │  │  Weighted majority vote:                │ │
+     │              │        │  │  voteWeight = quality × repFactor       │ │
+     │              │        │  │  resolution = yesWeight >= noWeight     │ │
+     │              │        │  │                                          │ │
+     │              │        │  │  Blinded weights (for on-chain):        │ │
+     │              │        │  │  weight = quality × correctMult × rep   │ │
+     │              │        │  │  (correctMult: 200 if correct, 50 if    │ │
+     │              │        │  │   not — NEVER leaves TEE)               │ │
+     │              │        │  └─────────────────────────────────────────┘ │
+     │              │        │                                              │
+     │              │        │  ┌─────────────────────────────────────────┐ │
+     │              │        │  │ Step 6: WRITE                           │ │
+     │              │        │  │  runtime.report() → DON signs           │ │
+     │              │        │  │  → KeystoneForwarder → CREReceiver      │ │
+     │              │        │  │  → resolveMarket()                      │ │
+     │              │        │  └─────────────────────────────────────────┘ │
+     │              │        └──────────────────────────────────────────────┘
+```
+
+**Modelo de Privacidad**: Todo dentro del TEE es confidencial — votos individuales, evidencia, scores crudos, y el multiplicador de correctitud nunca salen del TEE. On-chain solo aparecen: `weights[]` (blindados), `dimScores[]` (3 dimensiones), y `resolution` (respuesta final).
+
+### Fase 4: Settlement
+
+```
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ CRE DON      │    │ Keystone     │    │ CREReceiver  │    │ CREsolver    │
+│ (TEE)        │    │ Forwarder    │    │              │    │ Market       │
+└──────┬───────┘    └──────┬───────┘    └──────┬───────┘    └──────┬───────┘
+       │                   │                   │                   │
+       │ runtime.report()  │                   │                   │
+       │  (DON-signed)     │                   │                   │
+       │──────────────────>│                   │                   │
+       │                   │  onReport(meta, report)               │
+       │                   │──────────────────>│                   │
+       │                   │                   │  decode report    │
+       │                   │                   │  resolveMarket()  │
+       │                   │                   │──────────────────>│
+       │                   │                   │                   │
+       │                   │                   │                   │  ┌─────────────────┐
+       │                   │                   │                   │  │ 1. Distribute    │
+       │                   │                   │                   │  │    rewards       │
+       │                   │                   │                   │  │ 2. Return stakes │
+       │                   │                   │                   │  │ 3. Update        │
+       │                   │                   │                   │  │    internal rep   │
+       │                   │                   │                   │  │ 4. ERC-8004      │
+       │                   │                   │                   │  │    giveFeedback() │
+       │                   │                   │                   │  │    (if configured)│
+       │                   │                   │                   │  └─────────────────┘
+       │                   │                   │                   │
+```
+
+- **ERC-8004 Feedback**: Si `reputationRegistry != address(0)` y el worker tiene `agentId > 0`, se publica `giveFeedback(agentId, avgScore, 0, "resolution", "cresolver", ...)` al ReputationRegistry
+- El `avgScore` es el promedio de las 3 dimensiones: `(resQuality + srcQuality + analysisDepth) / 3`
+- La reputación interna (`getReputation()`) sigue siendo la fuente rápida para el workflow; ERC-8004 es la reputación canónica externa
+
+### Fase 5: Withdraw
+
+```
+┌──────────┐    ┌──────────────┐
+│ Worker   │    │ CREsolver    │
+│          │    │ Market       │
+└────┬─────┘    └──────┬───────┘
+     │                 │
+     │  withdraw()     │
+     │────────────────>│
+     │                 │  balances[worker] → 0
+     │  ← reward + stake (ETH transfer)
+     │                 │
+```
+
+### ERC-8004 Addresses (Ethereum Sepolia)
+
+| Registry | Address |
+|----------|---------|
+| IdentityRegistry | `0x8004A818BFB912233c491871b3d84c89A494BD9e` |
+| ReputationRegistry | `0x8004B663056A597Dffe9eCcC1965A193B7388713` |
+
+Para deploy en Sepolia con ERC-8004 habilitado:
+```bash
+ERC8004_IDENTITY=0x8004A818BFB912233c491871b3d84c89A494BD9e \
+ERC8004_REPUTATION=0x8004B663056A597Dffe9eCcC1965A193B7388713 \
+forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC --broadcast
 ```
 
 ---
@@ -141,7 +253,7 @@ Contrato standalone que combina toda la lógica en un solo contrato:
 | Función | Descripción |
 |---------|-------------|
 | `createMarket(question, duration)` | Crea mercado con reward pool (msg.value) |
-| `joinMarket(marketId)` | Worker stakea ETH para participar |
+| `joinMarket(marketId, agentId)` | Worker stakea ETH para participar (ERC-8004 identity check si configurado) |
 | `resolveMarket(marketId, workers, weights, dimScores, resolution)` | Resuelve y distribuye rewards |
 | `requestResolution(marketId)` | Emite evento para CRE EVM Log Trigger |
 | `withdraw()` | Worker retira balance acumulado |
@@ -281,8 +393,11 @@ bytes memory report = abi.encode(
 ```solidity
 contract DeployScript is Script {
     function run() external {
-        // 1. Deploy CREsolverMarket
-        CREsolverMarket market = new CREsolverMarket();
+        address identityReg = vm.envOr("ERC8004_IDENTITY", address(0));
+        address reputationReg = vm.envOr("ERC8004_REPUTATION", address(0));
+
+        // 1. Deploy CREsolverMarket (ERC-8004 registries optional)
+        CREsolverMarket market = new CREsolverMarket(identityReg, reputationReg);
 
         // 2. Deploy CREReceiver (pointing to market + forwarder)
         CREReceiver receiver = new CREReceiver(address(market), keystoneForwarder);

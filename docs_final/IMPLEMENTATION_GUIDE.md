@@ -125,6 +125,9 @@ CRE Workflow         CRE Runtime         KeystoneForwarder        CREReceiver   
 - **msg.sender**: Inside `onReport()`, `msg.sender` is the KeystoneForwarder address
 - **Authorization**: `setAuthorizedResolver()` must authorize the **CREReceiver** address (not the forwarder)
 - **Report encoding**: CRE workflow encodes `abi.encode(marketId, workers[], weights[], dimScores[], resolution)` with canonical blinded weights (no `determinations[]` on-chain)
+- **CRE TEE references**:
+  - Confidential HTTP + DON secrets + encrypted output: https://github.com/smartcontractkit/conf-http-demo
+  - Private transfer with permissioning/compliance controls: https://github.com/smartcontractkit/Compliant-Private-Transfer-Demo
 
 ---
 

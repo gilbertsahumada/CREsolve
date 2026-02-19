@@ -803,6 +803,13 @@ Mock response: determination=true, confidence=0.72
 | `correctnessMult` interno | TEE de CRE | SI |
 | API keys del LLM | TEE de CRE | SI |
 
+### 10.3 Referencias CRE (TEE / Confidential HTTP / Private Patterns)
+
+- `conf-http-demo` (Chainlink): ejemplo de confidential HTTP con secrets del DON y salida cifrada.
+  https://github.com/smartcontractkit/conf-http-demo
+- `Compliant-Private-Transfer-Demo` (Chainlink): ejemplo de patrón de transferencias privadas con controles de permissioning/compliance.
+  https://github.com/smartcontractkit/Compliant-Private-Transfer-Demo
+
 ---
 
 ## 11. Qué Construimos (Resumen Ejecutivo)

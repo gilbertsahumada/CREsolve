@@ -39,7 +39,17 @@ Resultado: resolución final + distribución de rewards + reputación por worker
 - Posición recomendada: presentarlo como "A2A-lite" (protocolo de interacción agéntica desacoplado por endpoint y payload tipado).
 - Post-hackathon: si conviene, envolver estos mismos payloads en un envelope A2A formal sin romper lógica de negocio.
 
-## 5) Algoritmo público (repo abierto)
+## 5) CRE + TEE: HTTP confidencial y secrets
+
+- En CRE, las llamadas HTTP pueden ejecutarse dentro del TEE con secrets del DON vault (sin exponer API keys en código/config pública).
+- También puede cifrarse la salida antes de salir del enclave (`encryptOutput`), para que el consumidor descifre fuera del workflow.
+- Esto complementa el diseño de CREsolver: lógica pública + datos sensibles protegidos en runtime.
+
+Referencias de Chainlink:
+- `conf-http-demo`: confidential HTTP con secrets y respuesta cifrada (`https://github.com/smartcontractkit/conf-http-demo`).
+- `Compliant-Private-Transfer-Demo`: patrón de transferencias privadas con controles de permissioning/compliance (`https://github.com/smartcontractkit/Compliant-Private-Transfer-Demo`).
+
+## 6) Algoritmo público (repo abierto)
 
 Implementado en `cre-workflow/cresolver-resolution/evaluate.ts`.
 
@@ -59,7 +69,7 @@ Público:
 Confidencial solo si corre en CRE TEE:
 - determinaciones individuales, evidencia/challenges, `correctnessMult` en runtime.
 
-## 6) Checklist E2E de jueves (simple)
+## 7) Checklist E2E de jueves (simple)
 
 Precondiciones:
 - Docker corriendo.
@@ -81,7 +91,7 @@ Debe pasar:
 - flujo por receiver validado.
 - suite E2E en verde (`18` tests).
 
-## 7) Gate de calidad para demo
+## 8) Gate de calidad para demo
 
 Antes de presentar:
 ```bash
@@ -93,6 +103,6 @@ cd ../cre-workflow/cresolver-resolution && npx tsc --noEmit
 cd ../.. && yarn e2e
 ```
 
-## 8) Mensaje para jurado (30s)
+## 9) Mensaje para jurado (30s)
 
 "El algoritmo de evaluación es público y auditable en el repo. Los agents investigan y se desafían entre sí. El workflow de CRE calcula consenso ponderado y liquida on-chain. En entorno TEE protegemos datos sensibles de runtime, sin ocultar la lógica de scoring."

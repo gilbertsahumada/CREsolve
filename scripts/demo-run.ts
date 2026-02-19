@@ -2,8 +2,8 @@ import { ethers } from "ethers";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runResolutionWorkflow } from "../cre-workflow/src/index.js";
-import type { WorkflowConfig } from "../cre-workflow/src/types.js";
+import { runResolutionWorkflow } from "./workflow-runner.js";
+import type { WorkflowConfig } from "./workflow-runner.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

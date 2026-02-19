@@ -7,6 +7,14 @@
     "e2e:up": "docker compose -f docker-compose.e2e.yml up -d --build --wait",
     "e2e:setup": "cd e2e && npx tsx setup.ts",
     "e2e:test": "cd e2e && npx vitest run --config vitest.e2e.config.ts",
-    "e2e:down": "docker compose -f docker-compose.e2e.yml down"
+    "e2e:down": "docker compose -f docker-compose.e2e.yml down",
+    "local:setup": "cd scripts && npx tsx setup-demo.ts",
+    "local:demo": "cd scripts && npx tsx demo-run.ts",
+    "sepolia:wallets": "cd scripts && npx tsx generate-wallets.ts",
+    "sepolia:register": "cd scripts && npx tsx register-agents.ts",
+    "agent:test": "cd agent && yarn test",
+    "scripts:typecheck": "cd scripts && npx tsc --noEmit",
+    "e2e:typecheck": "cd e2e && npx tsc --noEmit",
+    "workflow:typecheck": "cd cre-workflow/cresolver-resolution && npx tsc --noEmit"
   }
 }

@@ -22,13 +22,6 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         bool resolved;
     }
 
-    struct Reputation {
-        uint256 resQualitySum;
-        uint256 srcQualitySum;
-        uint256 analysisDepthSum;
-        uint256 count;
-    }
-
     // ─── ERC-8004 Registries (optional, address(0) = disabled) ────────
     IERC8004IdentityV1 public immutable identityRegistry;
     IERC8004Reputation public immutable reputationRegistry;
@@ -43,7 +36,6 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
 
     mapping(address => uint256) public balances;
     mapping(address => bool) public authorizedResolvers;
-    mapping(address => Reputation) public reputation;
 
     uint256 public minStake = 0.01 ether;
 
@@ -54,7 +46,6 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     event WorkerJoined(uint256 indexed marketId, address indexed worker, uint256 stake, uint256 agentId);
     event MarketResolved(uint256 indexed marketId, address indexed resolver, bool resolution);
     event ResolverUpdated(address indexed resolver, bool authorized);
-    event ReputationUpdated(address indexed worker, uint256 resQuality, uint256 srcQuality, uint256 analysisDepth, uint256 count);
     event Withdrawal(address indexed account, uint256 amount);
     event ResolutionRequested(uint256 indexed marketId, string question);
 
@@ -201,46 +192,26 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         address[] calldata workers,
         uint8[] calldata dimScores
     ) internal {
+        if (address(reputationRegistry) == address(0)) return;
+
         for (uint256 i; i < workers.length; i++) {
-            address worker = workers[i];
+            uint256 agentId = workerAgentIds[marketId][workers[i]];
+            if (agentId == 0) continue;
+
             uint256 baseIdx = i * 3;
-            Reputation storage rep = reputation[worker];
-            rep.resQualitySum += dimScores[baseIdx];
-            rep.srcQualitySum += dimScores[baseIdx + 1];
-            rep.analysisDepthSum += dimScores[baseIdx + 2];
-            rep.count++;
 
-            emit ReputationUpdated(
-                worker,
-                rep.resQualitySum / rep.count,
-                rep.srcQualitySum / rep.count,
-                rep.analysisDepthSum / rep.count,
-                rep.count
+            reputationRegistry.giveFeedback(
+                agentId, int128(int256(uint256(dimScores[baseIdx]))), 0,
+                "resolution_quality", "cresolver", "", "", bytes32(0)
             );
-        }
-
-        // Publish to ERC-8004 ReputationRegistry (if configured)
-        if (address(reputationRegistry) != address(0)) {
-            for (uint256 i; i < workers.length; i++) {
-                uint256 agentId = workerAgentIds[marketId][workers[i]];
-                if (agentId == 0) continue;
-
-                uint256 baseIdx = i * 3;
-                int128 avgScore = int128(int256(
-                    (uint256(dimScores[baseIdx]) + uint256(dimScores[baseIdx + 1]) + uint256(dimScores[baseIdx + 2])) / 3
-                ));
-
-                reputationRegistry.giveFeedback(
-                    agentId,
-                    avgScore,
-                    0,
-                    "resolution",
-                    "cresolver",
-                    "",
-                    "",
-                    bytes32(0)
-                );
-            }
+            reputationRegistry.giveFeedback(
+                agentId, int128(int256(uint256(dimScores[baseIdx + 1]))), 0,
+                "source_quality", "cresolver", "", "", bytes32(0)
+            );
+            reputationRegistry.giveFeedback(
+                agentId, int128(int256(uint256(dimScores[baseIdx + 2]))), 0,
+                "analysis_depth", "cresolver", "", "", bytes32(0)
+            );
         }
     }
 
@@ -294,22 +265,6 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     function isMarketActive(uint256 marketId) public view returns (bool) {
         Market storage m = markets[marketId];
         return m.deadline > 0 && !m.resolved && block.timestamp <= m.deadline;
-    }
-
-    function getReputation(address worker) external view returns (
-        uint256 resQuality,
-        uint256 srcQuality,
-        uint256 analysisDepth,
-        uint256 count
-    ) {
-        Reputation storage rep = reputation[worker];
-        if (rep.count == 0) return (0, 0, 0, 0);
-        return (
-            rep.resQualitySum / rep.count,
-            rep.srcQualitySum / rep.count,
-            rep.analysisDepthSum / rep.count,
-            rep.count
-        );
     }
 
     function getScoringCriteria() external pure returns (string[8] memory names, uint256[8] memory weights) {

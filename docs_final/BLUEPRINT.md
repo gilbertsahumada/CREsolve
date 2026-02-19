@@ -1,4 +1,4 @@
-# v13_v2 — ChaosSettler Standalone con Option 4 Blinded
+# CREsolver — Blueprint
 
 > **Estado**: Fases 1-3 completadas. Fase 4 (Polish + Deploy) pendiente.
 >
@@ -10,8 +10,8 @@
 > - CRE DON es el evaluador imparcial (no hay verifiers separados)
 > - Challenge Q&A no se persiste (CRE stateless = privacidad)
 >
-> **Usa ChaosChain**: Sí — StudioProxy para escrow/staking, RewardsDistributor para resolución,
-> ERC-8004 para identidad/reputación. No es standalone de verdad — usa la infraestructura existente.
+> **Standalone**: CREsolver es autónomo. `CREsolverMarket.sol` integra mercados,
+> staking, escrow, resolución y reputación en un solo contrato.
 >
 > **Todo el código a escribir está en este documento + IMPLEMENTATION_GUIDE.md**
 
@@ -24,11 +24,12 @@
 │                                                                             │
 │  COMPONENTES                                                               │
 │                                                                             │
-│  A. Contratos Solidity (branch hackathon/chaos-settler en chaoschain)      │
-│     ├── RewardsDistributor.sol    — MODIFICADO (+resolveAndDistribute)      │
-│     ├── ResolutionMarketLogic.sol — NUEVO (LogicModule para markets)       │
-│     ├── CREReceiver.sol           — NUEVO (puente KeystoneForwarder)       │
-│     └── Tests + Deploy script     — PENDIENTE                              │
+│  A. Contratos Solidity (cresolver/contracts/)                              │
+│     ├── CREsolverMarket.sol    — Mercado + staking + escrow + reputación   │
+│     ├── CREReceiver.sol        — Puente KeystoneForwarder → resolveMarket  │
+│     ├── ReceiverTemplate.sol   — Base contract CRE receiver pattern        │
+│     ├── IReceiver.sol          — Interface ERC165 para receivers           │
+│     └── Tests + Deploy script  — ✅ COMPLETADO                             │
 │                                                                             │
 │  B. CRE Resolution Workflow (TypeScript) ✅ COMPLETADO                     │
 │     ├── 6 steps: READ → ASK → CHALLENGE → EVALUATE → RESOLVE → WRITE     │
@@ -50,14 +51,6 @@
 │     ├── e2e/e2e.test.ts — 12 tests (3 markets + edge cases)               │
 │     └── yarn e2e — one-command: up → setup → test → down                   │
 │                                                                             │
-│  INFRAESTRUCTURA EXISTENTE (ChaosChain, sin cambios)                       │
-│     ├── ChaosChainRegistry — Registro central                              │
-│     ├── ChaosCore — Factory de Studios                                     │
-│     ├── StudioProxy — Escrow, staking, registro de agentes                 │
-│     ├── StudioProxyFactory — Crea proxies                                  │
-│     ├── ERC-8004 — Identity NFT + Reputation Registry                      │
-│     └── Scoring.sol — Librería de consenso MAD (no usada por ChaosSettler) │
-│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -67,23 +60,20 @@
 
 ```
 ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-│ Creador  │ │ Worker A │ │ Worker B │ │ CRE DON  │ │CREReceiver│ │ Rewards  │
-│          │ │          │ │          │ │  (TEE)   │ │          │ │Distributor│
+│ Creador  │ │ Worker A │ │ Worker B │ │ CRE DON  │ │CREReceiver│ │CREsolver │
+│          │ │          │ │          │ │  (TEE)   │ │          │ │  Market  │
 └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘
      │              │              │              │              │              │
      │ ══════════ FASE 1: SETUP ════════════     │              │              │
      │              │              │              │              │              │
-     │  deposit{value: 1 ETH}     │              │              │              │
-     │──────────────────────────────────────────────────────────────────────────>
-     │              │              │              │              │              │
-     │  createMarket("¿SEC ETF?", 1 ETH, 7 days)│              │              │
+     │  createMarket{value: 1 ETH, "¿SEC ETF?", 7 days}        │              │
      │──────────────────────────────────────────────────────────────────────────>
      │  → marketId  │              │              │              │              │
      │              │              │              │              │              │
-     │              │  registerAgent{0.01 ETH}    │              │              │
+     │              │  joinMarket{value: 0.01 ETH, marketId}    │              │
      │              │──────────────────────────────────────────────────────────>
      │              │              │              │              │              │
-     │              │              │  registerAgent{0.01 ETH}    │              │
+     │              │              │  joinMarket{value: 0.01 ETH}│              │
      │              │              │──────────────────────────────────────────>│
      │              │              │              │              │              │
      │ ══════════ FASE 2: CRE RESOLUTION ═══════ │              │              │
@@ -124,8 +114,7 @@
      │              │              │              │──runtime.report()──>        │
      │              │              │              │              │  onReport()  │
      │              │              │              │              │──────────────>
-     │              │              │              │              │ resolveAnd   │
-     │              │              │              │              │ Distribute() │
+     │              │              │              │              │ resolveMarket│
      │              │              │              │              │              │
      │ ══════════ FASE 3: WITHDRAW ═════════════ │              │              │
      │              │              │              │              │              │
@@ -143,205 +132,169 @@
 
 ## 3. Contratos Solidity
 
-### 3.1 Estado Actual (committed)
+### 3.1 CREsolverMarket.sol — Contrato Principal
 
-| Archivo | Estado | Descripción |
-|---------|--------|-------------|
-| `RewardsDistributor.sol` | **Modificado** | +`resolveAndDistribute()` Option 4 + `_publishResolutionReputation()` + `_getReputation()` + `setAuthorizedResolver()` |
-| `ResolutionMarketLogic.sol` | **Nuevo** | LogicModule: `createMarket()`, `getMarket()`, `isMarketActive()`, `getScoringCriteria()` (8 dims) |
-| `CREReceiver.sol` | **Staging** | Existe pero vacío — código completo abajo |
+**Archivo**: `contracts/src/CREsolverMarket.sol`
 
-### 3.2 Pendiente (código completo en §3.4-3.8)
+Contrato standalone que combina toda la lógica en un solo contrato:
 
-| Archivo | Líneas est. | Descripción |
-|---------|-------------|-------------|
-| `CREReceiver.sol` | ~65 | Puente KeystoneForwarder → resolveAndDistribute |
-| `ResolveAndDistribute.t.sol` | ~200 | Tests de resolveAndDistribute |
-| `CREReceiver.t.sol` | ~120 | Tests del bridge |
-| `ResolutionMarketLogic.t.sol` | ~100 | Tests del LogicModule |
-| `DeployChaosSettler.s.sol` | ~100 | Deploy script (Anvil + Base Sepolia) |
+| Función | Descripción |
+|---------|-------------|
+| `createMarket(question, duration)` | Crea mercado con reward pool (msg.value) |
+| `joinMarket(marketId)` | Worker stakea ETH para participar |
+| `resolveMarket(marketId, workers, weights, dimScores, resolution)` | Resuelve y distribuye rewards |
+| `requestResolution(marketId)` | Emite evento para CRE EVM Log Trigger |
+| `withdraw()` | Worker retira balance acumulado |
+| `setAuthorizedResolver(resolver, authorized)` | Owner autoriza/revoca resolvers |
+| `getMarket(marketId)` | Lee datos del mercado |
+| `getMarketWorkers(marketId)` | Lista workers de un mercado |
+| `getReputation(worker)` | Lee reputación promediada |
+| `getScoringCriteria()` | Devuelve 8 dimensiones de evaluación y pesos |
 
-### 3.3 Firma de resolveAndDistribute (ya implementada)
+**Structs**:
 
 ```solidity
-function resolveAndDistribute(
-    address studio,              // StudioProxy address
-    uint64 epoch,                // Epoch number for tracking
-    address[] calldata workers,  // Worker addresses (max 10)
-    uint256[] calldata weights,  // Pre-computed: quality × correctnessMult × rep
-    uint8[] calldata dimScores,  // Flat: [w0_resQ, w0_srcQ, w0_analysis, w1_resQ, ...]
-    bool resolution              // Final weighted answer (true/false)
-) external onlyOwnerResolver
+struct Market {
+    string question;
+    uint256 rewardPool;
+    uint256 deadline;
+    address creator;
+    bool resolved;
+}
+
+struct Reputation {
+    uint256 resQualitySum;
+    uint256 srcQualitySum;
+    uint256 analysisDepthSum;
+    uint256 count;
+}
 ```
 
-**Qué hace**:
-1. Valida inputs (studio != 0, workers.length <= 10, arrays match)
-2. Calcula reward pool = totalEscrow - sum(stakes)
-3. Por cada worker: `reward = rewardPool × weight[i] / totalWeight`
-4. Libera reward + devuelve stake via `studioProxy.releaseFunds()`
-5. Publica 3 dimensiones de reputación (sin tag ACCURATE/INACCURATE)
-6. Registra epoch work
+**Firma de resolveMarket** (la función central):
+
+```solidity
+function resolveMarket(
+    uint256 marketId,
+    address[] calldata workers,  // Worker addresses (max 10)
+    uint256[] calldata weights,  // Pre-computed blinded weights
+    uint8[] calldata dimScores,  // Flat: [w0_resQ, w0_srcQ, w0_analysis, w1_resQ, ...]
+    bool resolution              // Final weighted answer (true/false)
+) external
+```
+
+**Qué hace resolveMarket**:
+1. Valida inputs (market exists, not resolved, arrays match, workers registered, caller authorized)
+2. Calcula `totalWeight = sum(weights)`
+3. Por cada worker: `reward = rewardPool × weight[i] / totalWeight`, más devuelve stake
+4. Acumula 3 dimensiones de reputación (promedio running)
+5. Marca mercado como resolved
 
 **Qué NO hace**:
 - NO recibe `determinations[]` (votos se quedan en CRE TEE)
-- NO calcula consenso MAD (CRE lo reemplaza)
+- NO calcula consenso (CRE lo hace off-chain)
 - NO distribuye a validadores (CRE es el evaluador)
-- NO publica las 5 dimensiones PoA (no aplican a oráculos independientes)
 
-### 3.4 Bug Fix Pendiente: Double-call Guard
+### 3.2 CREReceiver.sol — Puente DON → Market
 
-> **Encontrado en análisis del 14 Feb**: `resolveAndDistribute()` no tiene guard contra double-call.
-> Si se llama dos veces para el mismo studio + epoch, workers podrían cobrar doble.
-
-**Agregar a RewardsDistributor.sol**:
+**Archivo**: `contracts/src/CREReceiver.sol`
 
 ```solidity
-// Nuevo estado (después de _workValidators, ~línea 75)
-mapping(address => mapping(uint64 => bool)) private _epochResolved;
+contract CREReceiver is ReceiverTemplate {
+    ICREsolverMarket public immutable market;
 
-// Al inicio de resolveAndDistribute() (después de validaciones):
-require(!_epochResolved[studio][epoch], "Already resolved");
-
-// Al final de resolveAndDistribute() (antes del emit):
-_epochResolved[studio][epoch] = true;
-```
-
-### 3.5 CREReceiver.sol — Código Completo
-
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
-
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
-interface IReceiver {
-    function onReport(bytes calldata metadata, bytes calldata report) external;
-}
-
-interface IRewardsDistributorCRE {
-    function resolveAndDistribute(
-        address studio,
-        uint64 epoch,
-        address[] calldata workers,
-        uint256[] calldata weights,
-        uint8[] calldata dimScores,
-        bool resolution
-    ) external;
-}
-
-/**
- * @title CREReceiver
- * @notice Receives DON-signed reports from KeystoneForwarder and forwards
- *         resolution data to RewardsDistributor.resolveAndDistribute()
- * @dev Deploy this, then call rewardsDistributor.setAuthorizedResolver(address(this), true)
- */
-contract CREReceiver is IReceiver, Ownable {
-    IRewardsDistributorCRE public immutable rewardsDistributor;
-    address public keystoneForwarder;
-
-    event ReportReceived(bytes32 indexed workflowId, address indexed studio, uint64 epoch);
-    event ForwarderUpdated(address indexed oldForwarder, address indexed newForwarder);
-
-    error UnauthorizedForwarder(address caller);
-
-    constructor(
-        address _rewardsDistributor,
-        address _keystoneForwarder
-    ) Ownable(msg.sender) {
-        rewardsDistributor = IRewardsDistributorCRE(_rewardsDistributor);
-        keystoneForwarder = _keystoneForwarder;
+    constructor(address _market, address _forwarder) ReceiverTemplate(_forwarder) {
+        market = ICREsolverMarket(_market);
     }
 
-    function setKeystoneForwarder(address _newForwarder) external onlyOwner {
-        address old = keystoneForwarder;
-        keystoneForwarder = _newForwarder;
-        emit ForwarderUpdated(old, _newForwarder);
-    }
-
-    function onReport(bytes calldata metadata, bytes calldata report) external override {
-        if (msg.sender != keystoneForwarder) {
-            revert UnauthorizedForwarder(msg.sender);
-        }
-
-        // Decode Option 4: blinded weights (no determinations)
+    function _processReport(bytes calldata report) internal override {
         (
-            address studio,
-            uint64 epoch,
+            uint256 marketId,
             address[] memory workers,
             uint256[] memory weights,
             uint8[] memory dimScores,
             bool resolution
-        ) = abi.decode(report, (address, uint64, address[], uint256[], uint8[], bool));
+        ) = abi.decode(report, (uint256, address[], uint256[], uint8[], bool));
 
-        // Forward to RewardsDistributor
-        rewardsDistributor.resolveAndDistribute(
-            studio, epoch, workers, weights, dimScores, resolution
-        );
-
-        // Extract workflow ID from metadata for logging
-        bytes32 workflowId;
-        if (metadata.length >= 32) {
-            workflowId = bytes32(metadata[:32]);
-        }
-
-        emit ReportReceived(workflowId, studio, epoch);
+        market.resolveMarket(marketId, workers, weights, dimScores, resolution);
+        emit ReportReceived(bytes32(0), marketId);
     }
 }
 ```
 
-### 3.6 KeystoneForwarder Pattern
+### 3.3 ReceiverTemplate.sol — Base Contract
+
+**Archivo**: `contracts/src/interfaces/ReceiverTemplate.sol`
+
+Contrato base abstracto que implementa el patrón CRE receiver:
+
+1. Valida que `msg.sender == forwarder` (KeystoneForwarder)
+2. Decodifica metadata (workflowId, donId, workflowOwner)
+3. Opcionalmente enforza workflow identity (whitelist de workflows permitidos)
+4. Delega a `_processReport()` para lógica de aplicación
+
+**Funciones admin**:
+- `setForwarder(address)` — Cambia el forwarder
+- `allowWorkflow(workflowId, donId, name)` — Permite un workflow específico
+- `disallowWorkflow(workflowId, donId)` — Revoca un workflow
+- `setEnforceWorkflowIdentity(bool)` — Activa/desactiva enforcement
+
+### 3.4 KeystoneForwarder Pattern
 
 ```
-CRE Workflow         CRE Runtime         KeystoneForwarder        CREReceiver         RewardsDistributor
+CRE Workflow         CRE Runtime         KeystoneForwarder        CREReceiver         CREsolverMarket
      │                    │                      │                      │                      │
      │──runtime.report()─>│                      │                      │                      │
      │  (encoded payload) │──report()────────────>│                      │                      │
      │                    │  (DON-signed)         │──onReport(meta,rpt)─>│                      │
      │                    │                      │                      │──decode report────────│
-     │                    │                      │                      │──resolveAndDistribute>│
+     │                    │                      │                      │──resolveMarket()─────>│
      │                    │                      │                      │<──ok──────────────────│
      │                    │                      │<──ok─────────────────│                      │
 ```
 
-**KeystoneForwarder address**: `0x82300bd7c3958625581cc2f77bc6464dcecdf3e5` (Base Sepolia CRE Simulation)
-
 **Authorization chain**:
 1. KeystoneForwarder calls `CREReceiver.onReport()` → msg.sender = KeystoneForwarder
-2. CREReceiver calls `RewardsDistributor.resolveAndDistribute()` → msg.sender = CREReceiver
-3. `setAuthorizedResolver(address(creReceiver), true)` authorizes the CREReceiver
+2. ReceiverTemplate valida forwarder + optional workflow identity
+3. CREReceiver calls `CREsolverMarket.resolveMarket()` → msg.sender = CREReceiver
+4. `setAuthorizedResolver(address(creReceiver), true)` authorizes the CREReceiver
 
-### 3.7 Report Encoding (CRE → CREReceiver)
+### 3.5 Report Encoding (CRE → CREReceiver)
 
 ```solidity
-// What CRE workflow encodes in step6-write.ts:
+// What CRE workflow encodes in evm.ts (submitResolution):
 bytes memory report = abi.encode(
-    studio,      // address
-    epoch,       // uint64
+    marketId,    // uint256
     workers,     // address[]
     weights,     // uint256[]  ← blinded: quality × correctnessMult × rep
     dimScores,   // uint8[]    ← flat: [resQ, srcQ, analysis] per worker
     resolution   // bool
 );
 
-// What CREReceiver.onReport() decodes:
-(address studio, uint64 epoch, address[] memory workers,
+// What CREReceiver._processReport() decodes:
+(uint256 marketId, address[] memory workers,
  uint256[] memory weights, uint8[] memory dimScores, bool resolution)
-    = abi.decode(report, (address, uint64, address[], uint256[], uint8[], bool));
+    = abi.decode(report, (uint256, address[], uint256[], uint8[], bool));
 ```
 
-### 3.8 Reputación: _publishResolutionReputation (ya implementada)
+### 3.6 Deploy Script
 
 ```solidity
-function _publishResolutionReputation(
-    uint256 agentId,
-    uint8 resolutionQuality,  // 0-100
-    uint8 sourceQuality,      // 0-100
-    uint8 analysisDepth       // 0-100
-) internal {
-    // ... (ver RewardsDistributor.sol líneas 1316-1350)
-    // Publica 3 giveFeedback calls sin tag ACCURATE/INACCURATE
-    // tag1 = "RESOLUTION_QUALITY" / "SOURCE_QUALITY" / "ANALYSIS_DEPTH"
-    // tag2 = "" (vacío — no revela precisión)
+contract DeployScript is Script {
+    function run() external {
+        // 1. Deploy CREsolverMarket
+        CREsolverMarket market = new CREsolverMarket();
+
+        // 2. Deploy CREReceiver (pointing to market + forwarder)
+        CREReceiver receiver = new CREReceiver(address(market), keystoneForwarder);
+
+        // 3. Authorize CREReceiver as resolver
+        market.setAuthorizedResolver(address(receiver), true);
+
+        // 4. Optionally authorize direct resolver for local demo
+        if (directResolver != address(0)) {
+            market.setAuthorizedResolver(directResolver, true);
+        }
+    }
 }
 ```
 
@@ -376,12 +329,12 @@ Resolution: YES
 ### 4.3 Fórmula de Weights (computada off-chain por CRE)
 
 ```
-weight[i] = qualityScore[i] × correctnessMult[i] × reputation[i]
+weight[i] = qualityScore[i] × correctnessMult[i] × reputationFactor[i]
 
 donde:
-  qualityScore:    0-100 (LLM evaluation in TEE)
-  correctnessMult: 200 si determination[i] == resolution, 50 si no
-  reputation:      0-100 (leído de ERC-8004, default 50 si nuevo)
+  qualityScore:     0-100 (evaluación algorítmica en workflow)
+  correctnessMult:  200 si determination[i] == resolution, 50 si no
+  reputationFactor: (avgReputation / 100 + 0.5) si count > 0, else 1.0
 ```
 
 ### 4.4 Flujo Completo del Scoring
@@ -389,15 +342,16 @@ donde:
 ```
 PASO 4 CRE (EVALUAR en TEE)                PASO 5 CRE (RESOLVER en TEE)
 ─────────────────────                       ──────────────────────
-Por worker, evalúa 8 dimensiones:           Computa:
- • Initiative: 75        ← off-chain        peso = qualityAgregado × multCorrectitud × rep
- • Collaboration: 80     ← off-chain        dimScores = [resQuality, srcQuality, analysis]
- • Reasoning Depth: 85   ← off-chain
- • Compliance: 90        ← off-chain        CONFIDENCIAL (nunca sale del TEE):
- • Efficiency: 70        ← off-chain         determination = true/false
- • Resolution Quality: 88 ──────────► on-chain    correctnessMult = 200/50
- • Source Quality: 72      ──────────► on-chain    qualityScore crudo
+Por worker, evalúa 3 dimensiones:           Computa:
+ • Resolution Quality: 88 ──────────► on-chain    peso = quality × multCorrectitud × rep
+ • Source Quality: 72      ──────────► on-chain    dimScores = [resQuality, srcQuality, analysis]
  • Analysis Depth: 65      ──────────► on-chain
+
+  qualityScore = resQ×0.4 + srcQ×0.3       CONFIDENCIAL (nunca sale del TEE):
+                 + analysis×0.3              determination = true/false
+                                             correctnessMult = 200/50
+                                             qualityScore crudo
+
                                             PÚBLICO (on-chain):
                                              weights[] (blindados)
                                              dimScores[] (3 dims, sin precisión)
@@ -411,70 +365,58 @@ Por worker, evalúa 8 dimensiones:           Computa:
 ### 5.1 Estructura de Archivos
 
 ```
-chaossettler/
+cresolver/
 └── cre-workflow/
-    ├── package.json
-    ├── tsconfig.json
-    └── src/
-        ├── index.ts          # Entry point, orchestrates 6 steps
-        ├── types.ts          # TypeScript interfaces
-        ├── step1-read.ts     # READ: workers, endpoints, reputations from chain
-        ├── step2-ask.ts      # ASK: POST /a2a/resolve to each worker
-        ├── step3-challenge.ts # CHALLENGE: generate + send challenge questions
-        ├── step4-evaluate.ts # EVALUATE: score quality 0-100 per worker
-        ├── step5-resolve.ts  # RESOLVE: weighted majority + blinded weights
-        └── step6-write.ts    # WRITE: resolveAndDistribute on-chain
+    ├── project.yaml               # CRE project metadata
+    ├── secrets.yaml               # API keys (no committed)
+    └── cresolver-resolution/
+        ├── workflow.yaml          # Workflow definition
+        ├── config.json            # Agent endpoints + EVM config
+        ├── main.ts                # Entry point, 2 triggers
+        ├── types.ts               # Zod schemas + TypeScript interfaces
+        ├── agents.ts              # HTTP client for worker queries
+        ├── evm.ts                 # EVM client for on-chain reads/writes
+        └── evaluate.ts            # Scoring + consensus + challenge gen
 ```
 
 ### 5.2 Tipos (types.ts)
 
 ```typescript
-export interface WorkerInfo {
+export interface WorkerData {
   address: string;
-  agentId: bigint;
+  endpoint: string;
   stake: bigint;
-  a2aEndpoint: string;
-  reputation: number;   // 0-100
+  reputation: {
+    resQuality: number;
+    srcQuality: number;
+    analysisDepth: number;
+    count: number;
+  };
 }
 
-export interface ResolutionRequest {
-  studio: string;
-  epoch: number;
-  question: string;
-  marketId: string;
-  deadline: number;
+export interface WorkerDetermination extends AgentResolveResponse {
+  workerAddress: string;
 }
 
-export interface WorkerDetermination {
-  worker: WorkerInfo;
-  determination: boolean;
-  confidence: number;
-  evidence: string;
-  sources: string[];
-  respondedAt: number;
-}
-
-export interface ChallengeQA {
-  worker: WorkerInfo;
+export interface ChallengeResult {
+  workerAddress: string;
   challenges: string[];
   responses: string[];
 }
 
 export interface WorkerEvaluation {
-  worker: WorkerInfo;
-  qualityScore: number;       // 0-100 aggregate
-  determination: boolean;      // stays off-chain
-  resolutionQuality?: number;  // 0-100 dimension
-  sourceQuality?: number;      // 0-100 dimension
-  analysisDepth?: number;      // 0-100 dimension
+  workerAddress: string;
+  qualityScore: number;
+  resolutionQuality: number;
+  sourceQuality: number;
+  analysisDepth: number;
 }
 
 export interface ResolutionResult {
   resolution: boolean;
   workers: string[];
-  weights: number[];          // on-chain (blinded)
-  dimScores: number[];        // on-chain (3 dims)
-  determinations: boolean[];  // off-chain only
+  weights: bigint[];
+  dimScores: number[];
 }
 ```
 
@@ -482,136 +424,133 @@ export interface ResolutionResult {
 
 | Step | Nombre | Herramienta CRE | Input | Output |
 |------|--------|-----------------|-------|--------|
-| 1 | READ | EVMClient.read | Chain state | WorkerInfo[] |
-| 2 | ASK | Confidential HTTP | Questions → workers | WorkerDetermination[] |
-| 3 | CHALLENGE | Confidential HTTP + LLM | Contradictions → workers | ChallengeQA[] |
-| 4 | EVALUATE | LLM (in TEE) | Evidence + challenges | WorkerEvaluation[] |
-| 5 | RESOLVE | Pure compute | Evaluations | ResolutionResult |
-| 6 | WRITE | runtime.report() / direct call | ResolutionResult | Tx receipt |
+| 1 | READ | EVMClient.callContract | Chain state | WorkerData[] |
+| 2 | ASK | HTTPClient (Confidential) | Questions → workers | WorkerDetermination[] |
+| 3 | CHALLENGE | HTTPClient + generateChallenges | Contradictions → workers | ChallengeResult[] |
+| 4 | EVALUATE | evaluateWorkers (algorítmico) | Evidence + challenges | WorkerEvaluation[] |
+| 5 | RESOLVE | computeResolution | Evaluations + determinations | ResolutionResult |
+| 6 | WRITE | runtime.report() + writeReport | ResolutionResult | DON-signed tx |
 
-### 5.4 Step 5: Resolve (la más importante)
+### 5.4 Triggers (main.ts)
+
+El workflow soporta 2 triggers:
+
+1. **EVM Log Trigger**: Escucha eventos `ResolutionRequested(uint256,string)` en CREsolverMarket
+2. **HTTP Trigger**: Acepta POST requests con `{ market_id: number }` para trigger manual
+
+Ambos triggers ejecutan la misma función `resolveMarket()` que orquesta los 6 steps.
+
+### 5.5 Step 5: Resolve (la más importante)
 
 ```typescript
-export function resolve(evaluations: WorkerEvaluation[]): ResolutionResult {
-  // --- Weighted majority vote ---
-  let yesWeight = 0;
-  let noWeight = 0;
+export function computeResolution(
+  determinations: WorkerDetermination[],
+  evaluations: WorkerEvaluation[],
+  workers: WorkerData[],
+): ResolutionResult {
+  // Weighted majority vote
+  for (const det of determinations) {
+    const repFactor = w.reputation.count > 0
+      ? (avgRep / 100 + 0.5) : 1.0;
+    const voteWeight = ev.qualityScore * repFactor;
+    if (det.determination) yesWeight += voteWeight;
+    else noWeight += voteWeight;
+  }
+  const resolution = yesWeight >= noWeight;
 
-  for (const ev of evaluations) {
-    const weight = ev.qualityScore * ev.worker.reputation;
-    if (ev.determination) yesWeight += weight;
-    else noWeight += weight;
+  // Blinded weights for on-chain
+  for (const det of determinations) {
+    const correctnessMult = det.determination === resolution ? 200 : 50;
+    const weight = Math.round(ev.qualityScore * correctnessMult * repFactor);
+    resultWorkers.push(det.workerAddress);
+    resultWeights.push(BigInt(weight));
+    resultDimScores.push(ev.resolutionQuality, ev.sourceQuality, ev.analysisDepth);
   }
 
-  const resolution = yesWeight > noWeight;
-
-  // --- Pre-compute blinded weights (Option 4) ---
-  const ACCURATE_MULT = 200;
-  const INACCURATE_MULT = 50;
-
-  const workers: string[] = [];
-  const weights: number[] = [];
-  const dimScores: number[] = [];
-  const determinations: boolean[] = [];  // OFF-CHAIN only
-
-  for (const ev of evaluations) {
-    const correctnessMult =
-      ev.determination === resolution ? ACCURATE_MULT : INACCURATE_MULT;
-
-    workers.push(ev.worker.address);
-    weights.push(ev.qualityScore * correctnessMult * ev.worker.reputation);
-    determinations.push(ev.determination);
-
-    dimScores.push(ev.resolutionQuality ?? ev.qualityScore);
-    dimScores.push(ev.sourceQuality ?? Math.round(ev.qualityScore * 0.8));
-    dimScores.push(ev.analysisDepth ?? Math.round(ev.qualityScore * 0.7));
-  }
-
-  return { resolution, workers, weights, dimScores, determinations };
+  return { resolution, workers: resultWorkers, weights: resultWeights, dimScores: resultDimScores };
 }
 ```
 
-### 5.5 Step 6: Write (dos modos)
+### 5.6 Step 6: Write
 
 **Modo CRE (producción)**:
 ```typescript
-import { runtime } from '@chainlink/cre-sdk';
-
-const payload = encodeResolutionReport(studio, epoch, result);
-runtime.report(payload);  // DON signs → KeystoneForwarder → CREReceiver → resolveAndDistribute
-```
-
-**Modo local (demo)**:
-```typescript
-const contract = new ethers.Contract(rewardsDistributorAddress, ABI, creSigner);
-await contract.resolveAndDistribute(
-  studioAddress, epoch, result.workers, result.weights, result.dimScores, result.resolution
+// Encode payload
+const encodedPayload = encodeAbiParameters(
+  [{ type: "uint256" }, { type: "address[]" }, { type: "uint256[]" }, { type: "uint8[]" }, { type: "bool" }],
+  [BigInt(marketId), result.workers, result.weights, dimScoresU8, result.resolution],
 );
+
+// DON signs → KeystoneForwarder → CREReceiver → resolveMarket
+const report = runtime.report(prepareReportRequest(encodedPayload)).result();
+evmClient.writeReport(runtime, { receiver: receiverAddr, report, gasConfig: { gasLimit } }).result();
 ```
 
-> **Código completo de todos los steps**: Ver `IMPLEMENTATION_GUIDE.md` §cre-workflow
+**Modo local (E2E)**: El `workflow-runner.ts` simula el DON llamando `resolveMarket()` directamente.
 
 ---
 
-## 6. Worker Agent (Python/FastAPI)
+## 6. Worker Agent (TypeScript/Hono)
 
 ### 6.1 Estructura
 
 ```
-chaossettler/
+cresolver/
 └── agent/
-    ├── requirements.txt
-    ├── Dockerfile
+    ├── package.json
+    ├── Dockerfile           # Node 20 alpine + tsx
     ├── src/
-    │   ├── main.py           # FastAPI app
-    │   ├── config.py         # Environment config
+    │   ├── index.ts         # Hono server entry
+    │   ├── config.ts        # Environment config
+    │   ├── validation.ts    # Zod schemas
     │   ├── routes/
-    │   │   └── a2a.py        # /a2a/resolve + /a2a/challenge
+    │   │   ├── health.ts    # GET /health
+    │   │   └── a2a.ts       # POST /a2a/resolve + /a2a/challenge
     │   └── services/
-    │       ├── investigator.py  # LLM-based investigation
-    │       └── defender.py      # Challenge defense
+    │       ├── investigator.ts  # Mock + LLM investigation
+    │       └── defender.ts      # Challenge defense
     └── tests/
-        ├── test_resolve.py
-        └── test_challenge.py
+        └── agent.test.ts
 ```
 
 ### 6.2 Endpoints A2A
 
 ```
 POST /a2a/resolve
-  Request:  { market_id: str, question: str, deadline?: int, context?: str }
-  Response: { determination: bool, confidence: float, evidence: str, sources: str[] }
+  Request:  { market_id: number, question: string, deadline?: number, context?: string }
+  Response: { determination: boolean, confidence: number, evidence: string, sources: string[] }
 
 POST /a2a/challenge
-  Request:  { challenges: str[] }
-  Response: { responses: str[] }
+  Request:  { challenges: string[] }
+  Response: { responses: string[] }
 
 GET /health
-  Response: { status: "ok", agent: str }
+  Response: { status: "ok", agent: string, mode: "llm" | "mock" }
 ```
 
 ### 6.3 Cómo Investiga
 
-```python
-# investigator.py (simplificado)
-async def investigate(question: str, context: str | None) -> dict:
-    if not client:  # Sin API key → mock deterministic
-        return _mock_investigation(question)
+```typescript
+// investigator.ts
+export async function investigate(question: string, marketId?: number): Promise<ResolveResponse> {
+  // Check cache (critical for CRE consensus: all DON nodes get identical responses)
+  if (marketId !== undefined) {
+    const cached = getCached(marketId);
+    if (cached) return cached;
+  }
 
-    # Con LLM:
-    system_prompt = """You are a decentralized oracle agent...
-    Respond in JSON: { determination, confidence, evidence, sources }"""
+  let result: ResolveResponse;
+  if (config.isLlmMode) {
+    // OpenAI with temperature=0, seed=42 for determinism
+    result = await llmInvestigate(question);
+  } else {
+    result = mockInvestigate(question);
+  }
 
-    response = await client.chat.completions.create(
-        model=LLM_MODEL,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Question: {question}"},
-        ],
-        temperature=0,
-        response_format={"type": "json_object"},
-    )
-    return json.loads(response.choices[0].message.content)
+  // Cache the result (10 min TTL)
+  if (marketId !== undefined) setCache(marketId, result);
+  return result;
+}
 ```
 
 ### 6.4 Mock para Testing
@@ -619,70 +558,69 @@ async def investigate(question: str, context: str | None) -> dict:
 Sin API key, el worker usa respuestas deterministas basadas en keywords:
 - `"bitcoin" + "200k"` → False, confidence 0.65
 - `"ethereum" + "pos"` → True, confidence 0.99
-- Default → hash-based deterministic (SHA256 del question)
+- `"etf"` → True, confidence 0.72
+- Default → hash-based deterministic (hash del question)
 
-> **Código completo del worker agent**: Ver `IMPLEMENTATION_GUIDE.md` §Agent
+### 6.5 Response Caching
+
+Ambos servicios (investigator y defender) implementan cache con TTL de 10 minutos.
+Esto es **crítico para CRE**: todos los nodos del DON deben obtener respuestas idénticas
+al hacer la misma query al mismo agent. Sin cache, requests no-deterministas (LLM)
+podrían producir resultados distintos en cada nodo, rompiendo el consenso.
 
 ---
 
 ## 7. Scripts de Setup y Demo
 
-### 7.1 register-worker.ts
+### 7.1 setup-demo.ts
 
 ```
-Uso: ts-node register-worker.ts <WORKER_KEY> <STUDIO_PROXY> [STAKE_ETH]
-
-1. Minta ERC-8004 identity NFT
-2. Registra en StudioProxy con stake (default 0.01 ETH)
+1. Espera a que Anvil esté listo
+2. Espera a que los 3 agents estén healthy
+3. Deploya CREsolverMarket con Foundry
+4. Autoriza deployer como resolver (para demo local sin CRE)
+5. Crea 3 mercados de prueba con reward pools
+6. Workers joinean cada mercado con stake
+7. Genera demo-config.json con addresses y config
 ```
 
-### 7.2 create-market.ts
+### 7.2 demo-run.ts
 
 ```
-Uso: ts-node create-market.ts <QUESTION> [REWARD_ETH] [DURATION_DAYS]
-
-1. Llama createMarket() en StudioProxy (via ResolutionMarketLogic)
-2. Emite MarketCreated event con marketId
+1. Lee demo-config.json
+2. Verifica health de todos los agents
+3. Para el market especificado:
+   a. Lee datos del mercado on-chain
+   b. Query a cada worker: POST /a2a/resolve
+   c. Genera challenges basados en disagreements
+   d. Query a cada worker: POST /a2a/challenge
+   e. Evalúa quality scores
+   f. Computa weighted majority + blinded weights
+   g. Llama resolveMarket() on-chain
+4. Muestra resultados y reputación actualizada
 ```
 
-### 7.3 setup-demo.ts
+### 7.3 Demo 3 Mercados
 
 ```
-1. Deploy contratos (o lee addresses de .env)
-2. Registra 3 workers (A, B, C)
-3. Deposita reward pool
-4. Crea 1 mercado de prueba
+MERCADO 0: "Will bitcoin reach 200k by end of 2026?"
+─────────────────────────────────────────────────────
+Mock response: determination=false, confidence=0.65
+→ Workers acuerdan: resolución NO
+
+MERCADO 1: "Has ethereum successfully transitioned to pos consensus?"
+───────────────────────────────────────────────────────────────────────
+Mock response: determination=true, confidence=0.99
+→ Workers acuerdan: resolución YES
+
+MERCADO 2: "Will a spot bitcoin etf be approved in 2024?"
+──────────────────────────────────────────────────────────
+Mock response: determination=true, confidence=0.72
+→ Workers acuerdan: resolución YES
+
+→ Reputación acumula (count 1 → 2 → 3)
+→ Edge case: re-resolve market throws AlreadyResolved
 ```
-
-### 7.4 demo-run.ts — Full Loop de 3 Mercados
-
-```
-MERCADO 1: "¿Aprobará la SEC un ETF de Solana antes de julio 2026?"
-─────────────────────────────────────────────────────────────────────
-Worker A: quality=90, accurate  → feedback: ResQuality=90
-Worker B: quality=80, accurate  → feedback: ResQuality=80
-Worker C: quality=20, wrong     → feedback: ResQuality=20
-
-Después: rep(A)≈90, rep(B)≈80, rep(C)≈20
-
-MERCADO 2: "¿Superará Bitcoin los $200k antes de abril 2026?"
-──────────────────────────────────────────────────────────────
-Worker A: quality=85, accurate  → rep(A) = avg(90,85) ≈ 87
-Worker C: quality=25, wrong     → rep(C) = avg(20,25) ≈ 22
-Worker D: quality=70, accurate  → rep(D) = 70 (primer mercado)
-
-MERCADO 3: "¿Lanzará Apple un dispositivo AR antes de junio 2026?"
-───────────────────────────────────────────────────────────────────
-Worker A: quality=80, reputation=87 → PESO ALTO en resolución
-Worker C: quality=60, reputation=22 → peso bajo (historial malo)
-Worker D: quality=75, reputation=70 → peso medio
-
-→ A tiene más influencia en la resolución Y gana más reward
-→ C necesita muchos mercados buenos para recuperar su reputación
-→ ESTO es lo que mostramos en la demo: reputation compounds
-```
-
-> **Código completo de scripts**: Ver `IMPLEMENTATION_GUIDE.md` §Scripts
 
 ---
 
@@ -693,27 +631,25 @@ Worker D: quality=75, reputation=70 → peso medio
 │                                                                             │
 │  ═══════ SETUP ═══════                                                     │
 │                                                                             │
-│  Creador ──deposit{1 ETH}──> StudioProxy._totalEscrow = 1 ETH             │
-│  Worker A ─registerAgent{0.01 ETH}─> stake stored                          │
-│  Worker B ─registerAgent{0.01 ETH}─> stake stored                          │
+│  Creador ──createMarket{1 ETH}──> Market.rewardPool = 1 ETH               │
+│  Worker A ─joinMarket{0.01 ETH}─> stakes[marketId][A] = 0.01 ETH          │
+│  Worker B ─joinMarket{0.01 ETH}─> stakes[marketId][B] = 0.01 ETH          │
 │                                                                             │
-│  StudioProxy._totalEscrow = 1.02 ETH (reward + stakes)                    │
+│  Contract balance = 1.02 ETH (reward + stakes)                             │
 │                                                                             │
 │  ═══════ RESOLUTION ═══════                                                │
 │                                                                             │
-│  CRE calls resolveAndDistribute():                                         │
-│    totalEscrow = 1.02 ETH                                                  │
-│    totalStakes = 0.02 ETH (A: 0.01 + B: 0.01)                             │
+│  CREReceiver (or direct resolver) calls resolveMarket():                   │
 │    rewardPool  = 1.00 ETH                                                  │
 │    totalWeight = 900000 + 100000 = 1,000,000                               │
 │                                                                             │
 │    Worker A: reward = 1.0 × 900000/1000000 = 0.90 ETH                     │
 │              + stake back = 0.01 ETH                                       │
-│              → withdrawable = 0.91 ETH                                     │
+│              → balances[A] = 0.91 ETH                                      │
 │                                                                             │
 │    Worker B: reward = 1.0 × 100000/1000000 = 0.10 ETH                     │
 │              + stake back = 0.01 ETH                                       │
-│              → withdrawable = 0.11 ETH                                     │
+│              → balances[B] = 0.11 ETH                                      │
 │                                                                             │
 │  ═══════ WITHDRAW ═══════                                                  │
 │                                                                             │
@@ -729,40 +665,33 @@ Worker D: quality=75, reputation=70 → peso medio
 
 | Amenaza | Defensa |
 |---------|---------|
-| CRE comprometido envía addresses falsas | `resolveAndDistribute()` valida que cada worker esté registrado (`getAgentId != 0`) |
-| Worker registra y no participa | Recibe reward bajo (quality≈0 del LLM). Stake se devuelve pero gana ~0 reward |
-| CRE no resuelve nunca | ResolutionMarketLogic puede implementar `timeout()` para devolver fondos |
-| Reentrancy en withdraw | Pull payment pattern en StudioProxy |
-| Worker se registra 2 veces | StudioProxy.registerAgent reverts on duplicate |
-| Más de 10 workers | `require(workers.length <= 10)` en resolveAndDistribute |
-| Double-call resolveAndDistribute | `_epochResolved[studio][epoch]` guard (§3.4) |
-| submitConsensus después de timeout | `require(!_epochResolved[studio][epoch])` |
-| Inferencia de votos por ratio de reward | Con ≥3 workers, múltiples combinaciones producen el mismo ratio. Con Private Tx, montos ocultos. |
+| Caller no autorizado llama resolveMarket | `authorizedResolvers[msg.sender]` check |
+| Worker no registrado incluido en resolución | `stakes[marketId][worker] == 0` reverts con `UnregisteredWorker` |
+| Worker se registra 2 veces | `AlreadyJoined` check en joinMarket |
+| Más de 10 workers | `TooManyWorkers` check (MAX_WORKERS = 10) |
+| Double-resolve | `AlreadyResolved` check en resolveMarket |
+| Reentrancy en withdraw | `ReentrancyGuard` de OpenZeppelin |
+| Forwarder no autorizado envía report | `ReceiverTemplate` valida `msg.sender == forwarder` |
+| Workflow no autorizado | `enforceWorkflowIdentity` + whitelist en ReceiverTemplate |
+| Metadata malformada | `MetadataTooShort` check (minimum 64 bytes) |
+| Inferencia de votos por ratio de reward | Con ≥3 workers, múltiples combinaciones producen el mismo ratio |
 
 ---
 
-## 10. Privacy Track (Chainlink Hackathon)
+## 10. Privacy (Chainlink CRE)
 
-### 10.1 Confidential HTTP (ya incluido por usar CRE)
+### 10.1 Confidential HTTP (incluido por usar CRE)
 
 | Dato | Dónde vive | Privado |
 |------|-----------|---------|
 | Determinación de cada worker | TEE de CRE | SI |
 | Evidencia y fuentes | TEE de CRE | SI |
 | Challenge Q&A | TEE de CRE | SI |
-| Scores crudos (8 dims) | TEE de CRE | SI |
+| Scores crudos (quality) | TEE de CRE | SI |
 | Multiplicador correctitud | TEE de CRE | SI |
 | API keys del LLM | TEE de CRE | SI |
 
-### 10.2 Private Transactions (nice-to-have, disponible desde Feb 16)
-
-| Dato | Sin Private Tx | Con Private Tx |
-|------|---------------|----------------|
-| Quién recibió reward | PÚBLICO (evento) | **PRIVADO** |
-| Cuánto recibió | PÚBLICO (calldata) | **PRIVADO** |
-| Distribución proporcional | PÚBLICO | **PRIVADO** |
-
-### 10.3 Modelo Completo
+### 10.2 Modelo Completo
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -778,14 +707,14 @@ Worker D: quality=75, reputation=70 → peso medio
            │                           │
     ┌──────▼──────────┐      ┌─────────▼──────────────┐
     │  REPUTACIÓN      │      │  PAGOS                  │
-    │  (pública)       │      │  (Private Tx opcional)  │
+    │  (pública)       │      │  (on-chain)             │
     │                  │      │                         │
-    │  ResQuality=85   │      │  Worker A: ??? ETH      │
-    │  SrcQuality=72   │      │  Worker B: ??? ETH      │
-    │  Analysis=65     │      │  (montos ocultos)       │
-    │                  │      │                         │
-    │  Consultable     │      │  No consultable         │
-    │  por cualquiera  │      │  por observadores       │
+    │  ResQuality=85   │      │  Worker A: 0.91 ETH     │
+    │  SrcQuality=72   │      │  Worker B: 0.11 ETH     │
+    │  Analysis=65     │      │                         │
+    │                  │      │  Calculado de weights[] │
+    │  Consultable     │      │  blindados              │
+    │  por cualquiera  │      │                         │
     └──────────────────┘      └─────────────────────────┘
 ```
 
@@ -796,19 +725,19 @@ Worker D: quality=75, reputation=70 → peso medio
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                                                                             │
-│  CONTRATOS SOLIDITY (branch hackathon/chaos-settler)                       │
-│  ═══════════════════════════════════════════════════                        │
-│  ✅ RewardsDistributor.sol — resolveAndDistribute Option 4 Blinded         │
-│  ✅ ResolutionMarketLogic.sol — LogicModule con createMarket, 8 dims       │
-│  ✅ CREReceiver.sol — puente KeystoneForwarder                             │
-│  ✅ CREsolverMarket.sol — contrato standalone para cresolver               │
+│  CONTRATOS SOLIDITY (cresolver/contracts/)                                 │
+│  ═══════════════════════════════════════════                                │
+│  ✅ CREsolverMarket.sol — Mercado + staking + escrow + reputación          │
+│  ✅ CREReceiver.sol — Puente KeystoneForwarder                             │
+│  ✅ ReceiverTemplate.sol — Base contract CRE pattern                       │
+│  ✅ IReceiver.sol — Interface ERC165                                       │
 │  ✅ Tests: CREsolverMarket.t.sol, CREReceiver.t.sol                        │
 │  ✅ Deploy: Deploy.s.sol                                                   │
-│  ⬜ _epochResolved guard (RewardsDistributor, §3.4)                        │
 │                                                                             │
 │  CRE WORKFLOW (cresolver/cre-workflow/, TypeScript) ✅                     │
 │  ═════════════════════════════════════════════════════                      │
-│  ✅ types.ts + abi.ts + step1..6.ts + index.ts                             │
+│  ✅ main.ts + types.ts + agents.ts + evm.ts + evaluate.ts                  │
+│  ✅ EVM Log Trigger + HTTP Trigger                                         │
 │  ✅ Local demo mode (direct call via resolveMarket)                        │
 │  ⬜ Compila a WASM para DON                                                │
 │                                                                             │
@@ -816,6 +745,7 @@ Worker D: quality=75, reputation=70 → peso medio
 │  ═══════════════════════════════════════════════════                        │
 │  ✅ /a2a/resolve + /a2a/challenge + /health                                │
 │  ✅ Mock mode (sin API key) + LLM mode (OpenAI)                            │
+│  ✅ Response caching (10 min TTL)                                          │
 │  ✅ Tests: agent.test.ts                                                   │
 │                                                                             │
 │  SCRIPTS (cresolver/scripts/, TypeScript) ✅                               │
@@ -831,8 +761,7 @@ Worker D: quality=75, reputation=70 → peso medio
 │  ✅ yarn e2e — one-command: up → setup → test → down                       │
 │                                                                             │
 │  ─────────────────────────────────────────────────────────────────         │
-│  PENDIENTE: Deploy Base Sepolia, WASM DON, video demo                      │
-│  HACKATHON TRACKS: Prediction Markets + Privacy                            │
+│  PENDIENTE: Deploy testnet, WASM DON, video demo                           │
 │  ─────────────────────────────────────────────────────────────────         │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -840,7 +769,7 @@ Worker D: quality=75, reputation=70 → peso medio
 
 ---
 
-## 12. Plan de Implementación Paso a Paso
+## 12. Plan de Implementación
 
 ### Fase 1: Contratos — ✅ COMPLETADA
 
@@ -848,68 +777,72 @@ Worker D: quality=75, reputation=70 → peso medio
 |------|-----|--------|
 | 1 | `CREsolverMarket.sol` (standalone market contract) | ✅ |
 | 2 | `CREReceiver.sol` (puente KeystoneForwarder) | ✅ |
-| 3 | Tests: `CREsolverMarket.t.sol`, `CREReceiver.t.sol` | ✅ |
-| 4 | Deploy script: `Deploy.s.sol` | ✅ |
-| 5 | `RewardsDistributor.sol` modificado | ✅ |
-| 6 | `ResolutionMarketLogic.sol` nuevo | ✅ |
-| 7 | `_epochResolved` guard en RewardsDistributor | ⬜ pendiente (§3.4) |
+| 3 | `ReceiverTemplate.sol` + `IReceiver.sol` | ✅ |
+| 4 | Tests: `CREsolverMarket.t.sol`, `CREReceiver.t.sol` | ✅ |
+| 5 | Deploy script: `Deploy.s.sol` | ✅ |
 
 ### Fase 2: Worker Agent + CRE Workflow — ✅ COMPLETADA
 
 | Paso | Qué | Estado |
 |------|-----|--------|
-| 8 | Estructura `cresolver/` (agent, cre-workflow, scripts, shared, contracts) | ✅ |
-| 9 | Worker Agent: TypeScript/Hono (health, /a2a/resolve, /a2a/challenge) | ✅ |
-| 10 | Worker Agent: mock + LLM modes | ✅ |
-| 11 | Worker Agent: tests | ✅ |
-| 12 | CRE Workflow: types, abi, step1..6, index | ✅ |
-| 13 | Scripts: setup-demo.ts, demo-run.ts | ✅ |
+| 6 | Estructura `cresolver/` (agent, cre-workflow, scripts, shared, contracts) | ✅ |
+| 7 | Worker Agent: TypeScript/Hono (health, /a2a/resolve, /a2a/challenge) | ✅ |
+| 8 | Worker Agent: mock + LLM modes + caching | ✅ |
+| 9 | Worker Agent: tests | ✅ |
+| 10 | CRE Workflow: types, agents, evm, evaluate, main | ✅ |
+| 11 | Scripts: setup-demo.ts, demo-run.ts | ✅ |
 
 ### Fase 3: Integración E2E — ✅ COMPLETADA
 
 | Paso | Qué | Estado |
 |------|-----|--------|
-| 14 | Docker Compose: Anvil (8547) + 3 agents (3101-3103) | ✅ |
-| 15 | E2E setup: deploy, fund, create markets, join | ✅ |
-| 16 | E2E tests: 12 tests (3 markets + edge cases) | ✅ |
-| 17 | One-command: `yarn e2e` (up → setup → test → down) | ✅ |
+| 12 | Docker Compose: Anvil (8547) + 3 agents (3101-3103) | ✅ |
+| 13 | E2E setup: deploy, fund, create markets, join | ✅ |
+| 14 | E2E tests: 12 tests (3 markets + edge cases) | ✅ |
+| 15 | One-command: `yarn e2e` (up → setup → test → down) | ✅ |
 
 ### Fase 4: Polish + Submission — PENDIENTE
 
 | Paso | Qué | Estado |
 |------|-----|--------|
-| 18 | Deploy en Base Sepolia (si CRE DON disponible) | ⬜ |
-| 19 | Documentar: README, arquitectura, screenshots | ⬜ |
-| 20 | Video demo | ⬜ |
-| 21 | Submit hackathon | ⬜ |
+| 16 | Deploy en testnet (si CRE DON disponible) | ⬜ |
+| 17 | Documentar: README, arquitectura | ✅ |
+| 18 | Video demo | ⬜ |
+| 19 | Submit hackathon | ⬜ |
 
 ---
 
-## 13. Dependencias y Puertos
+## 13. Puertos y Config
 
-### Puertos
+### Puertos (E2E Docker)
 
-| Servicio | Puerto | Notas |
-|----------|--------|-------|
-| Anvil (local testnet) | 8546 | **NO 8545** (Docker puede ocuparlo) |
-| Worker Agent A | 8001 | `AGENT_PORT=8001` |
-| Worker Agent B | 8002 | `AGENT_PORT=8002` |
-| Worker Agent C | 8003 | `AGENT_PORT=8003` |
+| Servicio | Puerto Host | Puerto Container |
+|----------|-------------|-----------------|
+| Anvil | 8547 | 8545 |
+| Agent Alpha | 3101 | 3000 |
+| Agent Beta | 3102 | 3000 |
+| Agent Gamma | 3103 | 3000 |
 
-### Keys de Anvil (para demo)
+### Puertos (Demo local)
 
-```bash
-# Deployer / Admin
-DEPLOYER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+| Servicio | Puerto |
+|----------|--------|
+| Anvil | 8545 |
+| Agent Alpha | 3001 |
+| Agent Beta | 3002 |
+| Agent Gamma | 3003 |
 
-# CRE DON Signer (simulates resolver)
-CRE_DON_PRIVATE_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+### Environment Variables
 
-# Workers
-WORKER_A_KEY=0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
-WORKER_B_KEY=0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
-WORKER_C_KEY=0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
-```
+| Variable | Default | Uso |
+|----------|---------|-----|
+| `AGENT_PORT` | 3001 | Puerto del agent |
+| `AGENT_NAME` | "Worker" | Nombre del agent |
+| `LLM_API_KEY` | "" | OpenAI key (vacío = mock mode) |
+| `LLM_MODEL` | "gpt-4o-mini" | Modelo LLM |
+| `RPC_URL` | http://127.0.0.1:8545 | Endpoint Ethereum |
+| `KEYSTONE_FORWARDER` | address(0) | Address del forwarder (deploy script) |
+| `DIRECT_RESOLVER` | address(0) | Resolver directo para demo (deploy script) |
 
 ### Package Manager
 
@@ -922,9 +855,8 @@ WORKER_C_KEY=0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
 ### Contratos
 
 - [x] `forge build` → compila sin errores
-- [x] CREsolverMarket tests pasan
-- [x] CREReceiver tests pasan
-- [ ] `_epochResolved` guard implementado en RewardsDistributor (§3.4)
+- [x] CREsolverMarket tests pasan (16 tests)
+- [x] CREReceiver tests pasan (9 tests)
 
 ### Worker Agent
 
@@ -933,17 +865,15 @@ WORKER_C_KEY=0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
 - [x] `POST /a2a/resolve` → determination + evidence (mock mode)
 - [x] `POST /a2a/challenge` → responses
 
-### CRE Workflow (local demo)
+### CRE Workflow
 
-- [x] `runResolutionWorkflow(config)` ejecuta los 6 steps
-- [x] resolveMarket on-chain exitoso → txHash
-- [x] Workers reciben rewards (balances > 0)
-- [x] Reputación publicada (count incrementa)
+- [x] `yarn typecheck` → no errors
+- [x] Config schema validado con Zod
 
 ### E2E Sandbox (Docker)
 
 - [x] `docker compose -f docker-compose.e2e.yml config` → valida
-- [ ] `yarn e2e` → 12/12 tests pasan (pendiente correr)
+- [x] `yarn e2e` → up → setup → test → down
 - [x] Anvil en puerto 8547, agents en 3101-3103
 - [x] Setup: deploy + fund + create 3 markets + join workers
 
@@ -953,25 +883,4 @@ WORKER_C_KEY=0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
 - [x] Market 1 "ethereum PoS" → resolución YES (mock)
 - [x] Market 2 "bitcoin ETF" → resolución YES (mock)
 - [x] Reputación acumula (count 1 → 2 → 3)
-- [x] Edge case: re-resolve market throws
-
-### Deploy + Submission
-
-- [ ] Deploy en Base Sepolia
-- [ ] README / documentación
-- [ ] Video demo
-- [ ] Submit hackathon
-
----
-
-## 15. Referencias
-
-| Documento | Path | Contenido |
-|-----------|------|-----------|
-| IMPLEMENTATION_GUIDE | `hackathon/IMPLEMENTATION_GUIDE.md` | Todo el código a escribir (~2937 líneas) |
-| SCORING_CONFIDENTIALITY | `hackathon/SCORING_CONFIDENTIALITY_ANALYSIS.md` | 4 opciones de scoring, Option 4 recomendada |
-| v13 (original) | `hackathon/v13_standalone_baseline.md` | Diseño standalone original (pre-blinded) |
-| v14 | `hackathon/v14_chaoschain_integration.md` | Justificación de usar ChaosChain |
-| ANALISIS 14FEB | `hackathon/ANALISIS)CHAOS_14FEB.md` | closeEpoch vs resolveAndDistribute + bug double-call |
-| RewardsDistributor | `packages/contracts/src/RewardsDistributor.sol` | Contrato ya modificado |
-| ResolutionMarketLogic | `packages/contracts/src/logic/ResolutionMarketLogic.sol` | LogicModule ya implementado |
+- [x] Edge case: re-resolve market throws AlreadyResolved

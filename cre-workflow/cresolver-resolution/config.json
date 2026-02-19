@@ -1,0 +1,24 @@
+{
+  "evms": [
+    {
+      "chain_selector": 31337,
+      "market_address": "0x0000000000000000000000000000000000000000",
+      "receiver_address": "0x0000000000000000000000000000000000000000",
+      "gas_limit": 500000
+    }
+  ],
+  "agents": [
+    {
+      "name": "Alpha",
+      "endpoint": "http://127.0.0.1:3101"
+    },
+    {
+      "name": "Beta",
+      "endpoint": "http://127.0.0.1:3102"
+    },
+    {
+      "name": "Gamma",
+      "endpoint": "http://127.0.0.1:3103"
+    }
+  ]
+}

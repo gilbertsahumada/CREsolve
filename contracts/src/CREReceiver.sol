@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
-interface IReceiver {
-    function onReport(bytes calldata metadata, bytes calldata report) external;
-}
+import {ReceiverTemplate} from "./interfaces/ReceiverTemplate.sol";
 
 interface ICREsolverMarket {
     function resolveMarket(
@@ -19,50 +15,30 @@ interface ICREsolverMarket {
 
 /**
  * @title CREReceiver
- * @notice Receives DON-signed reports from KeystoneForwarder and forwards
- *         resolution data to CREsolverMarket.resolveMarket()
+ * @notice Receives DON-signed reports from the KeystoneForwarder via ReceiverTemplate
+ *         and forwards resolution data to CREsolverMarket.resolveMarket()
  * @dev Deploy this, then call market.setAuthorizedResolver(address(this), true)
  *
  * @author CREsolver
  */
-contract CREReceiver is IReceiver, Ownable {
+contract CREReceiver is ReceiverTemplate {
     ICREsolverMarket public immutable market;
-    address public keystoneForwarder;
 
     event ReportReceived(bytes32 indexed workflowId, uint256 indexed marketId);
-    event ForwarderUpdated(address indexed oldForwarder, address indexed newForwarder);
-
-    error UnauthorizedForwarder(address caller);
 
     constructor(
         address _market,
-        address _keystoneForwarder
-    ) Ownable(msg.sender) {
+        address _forwarder
+    ) ReceiverTemplate(_forwarder) {
         market = ICREsolverMarket(_market);
-        keystoneForwarder = _keystoneForwarder;
     }
 
     /**
-     * @notice Update the KeystoneForwarder address
-     * @param _newForwarder The new forwarder address
+     * @notice Process a DON-signed resolution report
+     * @param report ABI-encoded resolution payload:
+     *        (uint256 marketId, address[] workers, uint256[] weights, uint8[] dimScores, bool resolution)
      */
-    function setKeystoneForwarder(address _newForwarder) external onlyOwner {
-        address old = keystoneForwarder;
-        keystoneForwarder = _newForwarder;
-        emit ForwarderUpdated(old, _newForwarder);
-    }
-
-    /**
-     * @notice Called by KeystoneForwarder with a DON-signed report
-     * @param metadata CRE metadata (workflow ID, DON ID, etc.)
-     * @param report ABI-encoded resolution payload
-     */
-    function onReport(bytes calldata metadata, bytes calldata report) external override {
-        if (msg.sender != keystoneForwarder) {
-            revert UnauthorizedForwarder(msg.sender);
-        }
-
-        // Decode the resolution payload
+    function _processReport(bytes calldata report) internal override {
         (
             uint256 marketId,
             address[] memory workers,
@@ -71,15 +47,11 @@ contract CREReceiver is IReceiver, Ownable {
             bool resolution
         ) = abi.decode(report, (uint256, address[], uint256[], uint8[], bool));
 
-        // Forward to CREsolverMarket
         market.resolveMarket(marketId, workers, weights, dimScores, resolution);
 
-        // Extract workflow ID from metadata for logging
-        bytes32 workflowId;
-        if (metadata.length >= 32) {
-            workflowId = bytes32(metadata[:32]);
-        }
-
-        emit ReportReceived(workflowId, marketId);
+        // workflowId is available from metadata decoding in parent, but _processReport
+        // only receives the report. We emit with bytes32(0) for the workflowId here;
+        // the parent already emits ReportProcessed with the actual identity.
+        emit ReportReceived(bytes32(0), marketId);
     }
 }

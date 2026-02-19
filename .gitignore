@@ -21,6 +21,10 @@ e2e/demo-config.json
 # OS
 .DS_Store
 
+# CRE
+*.wasm
+cre-workflow/tmp/
+
 # IDE
 .vscode/
 .idea/

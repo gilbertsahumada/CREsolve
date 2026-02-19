@@ -1,0 +1,15 @@
+project_name: cresolver
+language: typescript
+
+targets:
+  local-simulation:
+    rpc_urls:
+      - chain_id: 31337
+        url: "http://127.0.0.1:8547"
+    description: "Local Anvil devnet for simulation and testing"
+
+  staging:
+    rpc_urls:
+      - chain_id: 11155111
+        url: "${SEPOLIA_RPC_URL}"
+    description: "Sepolia testnet staging environment"

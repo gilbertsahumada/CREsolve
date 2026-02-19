@@ -79,29 +79,51 @@ async function main() {
   const deployer = new ethers.NonceManager(rawDeployer);
   console.log(`  Deployer: ${rawDeployer.address}`);
 
-  const artifactPath = resolve(
+  const marketArtifactPath = resolve(
     __dirname,
     "../contracts/out/CREsolverMarket.sol/CREsolverMarket.json",
   );
-  const artifact = JSON.parse(readFileSync(artifactPath, "utf-8"));
-  const factory = new ethers.ContractFactory(
-    artifact.abi,
-    artifact.bytecode.object,
+  const marketArtifact = JSON.parse(readFileSync(marketArtifactPath, "utf-8"));
+  const marketFactory = new ethers.ContractFactory(
+    marketArtifact.abi,
+    marketArtifact.bytecode.object,
     deployer,
   );
-  const deployedContract = await factory.deploy();
-  await deployedContract.waitForDeployment();
-  const contractAddress = await deployedContract.getAddress();
-  console.log(`  Contract deployed at: ${contractAddress}`);
+  const deployedMarket = await marketFactory.deploy();
+  await deployedMarket.waitForDeployment();
+  const contractAddress = await deployedMarket.getAddress();
+  console.log(`  CREsolverMarket deployed at: ${contractAddress}`);
 
-  const contract = new ethers.Contract(contractAddress, artifact.abi, deployer);
+  const contract = new ethers.Contract(contractAddress, marketArtifact.abi, deployer);
 
-  // 4. Authorize deployer as resolver
+  // 4. Deploy CREReceiver
+  console.log("\n--- Deploying CREReceiver ---");
+  const receiverArtifactPath = resolve(
+    __dirname,
+    "../contracts/out/CREReceiver.sol/CREReceiver.json",
+  );
+  const receiverArtifact = JSON.parse(readFileSync(receiverArtifactPath, "utf-8"));
+  const receiverFactory = new ethers.ContractFactory(
+    receiverArtifact.abi,
+    receiverArtifact.bytecode.object,
+    deployer,
+  );
+  // Use deployer as the forwarder for local testing
+  const deployedReceiver = await receiverFactory.deploy(contractAddress, rawDeployer.address);
+  await deployedReceiver.waitForDeployment();
+  const receiverAddress = await deployedReceiver.getAddress();
+  console.log(`  CREReceiver deployed at: ${receiverAddress}`);
+
+  // 5. Authorize both deployer and receiver as resolvers
   const tx0 = await contract.setAuthorizedResolver(rawDeployer.address, true);
   await tx0.wait();
   console.log(`  Deployer authorized as resolver`);
 
-  // 5. Create worker wallets and fund them
+  const tx1 = await contract.setAuthorizedResolver(receiverAddress, true);
+  await tx1.wait();
+  console.log(`  CREReceiver authorized as resolver`);
+
+  // 6. Create worker wallets and fund them
   console.log("\n--- Setting up workers ---");
   const workerWallets = makeWorkerWallets(AGENT_PORTS.length);
   const workerEndpoints = new Map<string, string>();
@@ -122,7 +144,7 @@ async function main() {
     );
   }
 
-  // 6. Create markets and have workers join
+  // 7. Create markets and have workers join
   console.log("\n--- Creating markets ---");
   for (let m = 0; m < DEMO_MARKETS.length; m++) {
     const market = DEMO_MARKETS[m];
@@ -140,7 +162,7 @@ async function main() {
       const workerSigner = workerWallets[w].connect(provider);
       const workerContract = new ethers.Contract(
         contractAddress,
-        artifact.abi,
+        marketArtifact.abi,
         workerSigner,
       );
       const joinTx = await workerContract.joinMarket(m, {
@@ -151,11 +173,21 @@ async function main() {
     console.log(`    ${workerWallets.length} workers joined`);
   }
 
-  // 7. Write config for tests
+  // 8. Request resolution for all markets (emits ResolutionRequested events)
+  console.log("\n--- Requesting resolutions ---");
+  for (let m = 0; m < DEMO_MARKETS.length; m++) {
+    const reqTx = await contract.requestResolution(m);
+    const receipt = await reqTx.wait();
+    console.log(`  Market #${m}: ResolutionRequested event emitted (tx: ${receipt.hash.slice(0, 18)}...)`);
+  }
+
+  // 9. Write config for tests
   const demoConfig = {
     rpcUrl: RPC_URL,
     contractAddress,
+    receiverAddress,
     resolverPrivateKey: rawDeployer.privateKey,
+    forwarderAddress: rawDeployer.address,
     workerEndpoints: Object.fromEntries(workerEndpoints),
     workers: workerWallets.map((w, i) => ({
       name: AGENT_NAMES[i],
@@ -174,7 +206,8 @@ async function main() {
   console.log("║  E2E Setup complete!                             ║");
   console.log("╚══════════════════════════════════════════════════╝");
   console.log(`  Config: ${configPath}`);
-  console.log(`  Contract: ${contractAddress}`);
+  console.log(`  Market: ${contractAddress}`);
+  console.log(`  Receiver: ${receiverAddress}`);
   console.log(`  Markets: ${DEMO_MARKETS.length}`);
   console.log(`  Workers: ${workerWallets.length}\n`);
 }

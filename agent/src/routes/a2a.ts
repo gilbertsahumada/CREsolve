@@ -20,7 +20,7 @@ a2aRoutes.post("/a2a/resolve", async (c) => {
   }
 
   try {
-    const result = await investigate(parsed.data.question);
+    const result = await investigate(parsed.data.question, parsed.data.market_id);
     return c.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Investigation failed";

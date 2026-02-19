@@ -49,6 +49,7 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     event ResolverUpdated(address indexed resolver, bool authorized);
     event ReputationUpdated(address indexed worker, uint256 resQuality, uint256 srcQuality, uint256 analysisDepth, uint256 count);
     event Withdrawal(address indexed account, uint256 amount);
+    event ResolutionRequested(uint256 indexed marketId, string question);
 
     // ─── Errors ────────────────────────────────────────────────────────
     error EmptyQuestion();
@@ -63,6 +64,9 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     error ArrayMismatch(uint256 workersLen, uint256 weightsLen, uint256 scoresLen);
     error UnregisteredWorker(uint256 marketId, address worker);
     error NoBalance();
+    error MarketDoesNotExist(uint256 marketId);
+    error MarketAlreadyResolved(uint256 marketId);
+    error NotMarketCreator(uint256 marketId, address caller);
 
     // ─── Constructor ───────────────────────────────────────────────────
     constructor() Ownable(msg.sender) {}
@@ -218,6 +222,19 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     function setAuthorizedResolver(address resolver, bool authorized) external onlyOwner {
         authorizedResolvers[resolver] = authorized;
         emit ResolverUpdated(resolver, authorized);
+    }
+
+    /**
+     * @notice Request resolution for a market, emitting an event for CRE EVM Log Trigger
+     * @param marketId The market to request resolution for
+     */
+    function requestResolution(uint256 marketId) external {
+        Market storage m = markets[marketId];
+        if (m.deadline == 0) revert MarketDoesNotExist(marketId);
+        if (m.resolved) revert MarketAlreadyResolved(marketId);
+        if (m.creator != msg.sender && msg.sender != owner()) revert NotMarketCreator(marketId, msg.sender);
+
+        emit ResolutionRequested(marketId, m.question);
     }
 
     // ─── View Functions ────────────────────────────────────────────────

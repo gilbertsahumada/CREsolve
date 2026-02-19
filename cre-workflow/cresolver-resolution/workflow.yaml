@@ -1,0 +1,12 @@
+name: cresolver-resolution
+description: "CRE workflow for resolving prediction markets using multi-agent consensus"
+
+artifact:
+  entry_point: main.ts
+  build_dir: dist
+
+config:
+  path: config.json
+
+secrets:
+  path: ../secrets.yaml

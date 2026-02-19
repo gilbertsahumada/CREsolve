@@ -119,7 +119,9 @@ export function createOnChainVerifier(
 export interface DemoConfig {
   rpcUrl: string;
   contractAddress: string;
+  receiverAddress: string;
   resolverPrivateKey: string;
+  forwarderAddress: string;
   workerEndpoints: Record<string, string>;
   workers: Array<{
     name: string;

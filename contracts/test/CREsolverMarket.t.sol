@@ -324,6 +324,61 @@ contract CREsolverMarketTest is Test {
         market.withdraw();
     }
 
+    // ─── requestResolution ─────────────────────────────────────────────
+
+    function test_requestResolution_by_creator() public {
+        market.createMarket{value: 1 ether}("Will ETH hit 10k?", 1 days);
+
+        vm.expectEmit(true, false, false, true);
+        emit CREsolverMarket.ResolutionRequested(0, "Will ETH hit 10k?");
+
+        market.requestResolution(0);
+    }
+
+    function test_requestResolution_by_owner() public {
+        // Create market as worker1 (not the test contract)
+        vm.deal(worker1, 2 ether);
+        vm.prank(worker1);
+        market.createMarket{value: 1 ether}("Q?", 1 days);
+
+        // Owner (address(this)) should also be able to request resolution
+        market.requestResolution(0);
+    }
+
+    function test_requestResolution_reverts_nonexistent_market() public {
+        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.MarketDoesNotExist.selector, 99));
+        market.requestResolution(99);
+    }
+
+    function test_requestResolution_reverts_already_resolved() public {
+        uint256 id = _setupMarketWith2Workers();
+
+        address[] memory workers = new address[](2);
+        workers[0] = worker1;
+        workers[1] = worker2;
+        uint256[] memory weights = new uint256[](2);
+        weights[0] = 5000;
+        weights[1] = 5000;
+        uint8[] memory dimScores = new uint8[](6);
+        dimScores[0] = 80; dimScores[1] = 70; dimScores[2] = 60;
+        dimScores[3] = 90; dimScores[4] = 85; dimScores[5] = 75;
+
+        vm.prank(resolver);
+        market.resolveMarket(id, workers, weights, dimScores, true);
+
+        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.MarketAlreadyResolved.selector, id));
+        market.requestResolution(id);
+    }
+
+    function test_requestResolution_reverts_unauthorized_caller() public {
+        market.createMarket{value: 1 ether}("Q?", 1 days);
+
+        address nobody = makeAddr("nobody");
+        vm.prank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.NotMarketCreator.selector, 0, nobody));
+        market.requestResolution(0);
+    }
+
     // ─── reputation accumulates ────────────────────────────────────────
 
     function test_reputation_accumulates() public {

@@ -168,6 +168,9 @@ contract CREsolverMarketTest is Test {
     }
 
     function test_resolveMarket_publishes_reputation() public {
+        // When reputationRegistry is address(0), _updateReputation is a no-op.
+        // Reputation publishing to ERC-8004 is tested in test_resolveMarket_publishes_erc8004_feedback.
+        // Here we verify resolveMarket succeeds without an external registry.
         uint256 id = _setupMarketWith2Workers();
 
         address[] memory workers = new address[](2);
@@ -185,17 +188,11 @@ contract CREsolverMarketTest is Test {
         vm.prank(resolver);
         market.resolveMarket(id, workers, weights, dimScores, true);
 
-        (uint256 r1, uint256 s1, uint256 a1, uint256 c1) = market.getReputation(worker1);
-        assertEq(r1, 80);
-        assertEq(s1, 70);
-        assertEq(a1, 60);
-        assertEq(c1, 1);
-
-        (uint256 r2, uint256 s2, uint256 a2, uint256 c2) = market.getReputation(worker2);
-        assertEq(r2, 90);
-        assertEq(s2, 85);
-        assertEq(a2, 75);
-        assertEq(c2, 1);
+        // Verify market resolved and rewards distributed correctly
+        CREsolverMarket.Market memory m = market.getMarket(id);
+        assertTrue(m.resolved);
+        assertEq(market.balances(worker1), 0.5 ether + 0.05 ether);
+        assertEq(market.balances(worker2), 0.5 ether + 0.05 ether);
     }
 
     function test_resolveMarket_reverts_unauthorized() public {
@@ -383,6 +380,10 @@ contract CREsolverMarketTest is Test {
     // ─── reputation accumulates ────────────────────────────────────────
 
     function test_reputation_accumulates() public {
+        // When reputationRegistry is address(0), _updateReputation is a no-op.
+        // This test verifies that workers can participate in multiple markets
+        // and rewards are distributed correctly across them.
+
         // Market 1
         uint256 id1 = _setupMarketWith2Workers();
 
@@ -398,6 +399,10 @@ contract CREsolverMarketTest is Test {
 
         vm.prank(resolver);
         market.resolveMarket(id1, workers, weights, dimScores1, true);
+
+        // Verify market 1 rewards: each worker gets 50% of 1 ether + 0.05 stake
+        assertEq(market.balances(worker1), 0.55 ether);
+        assertEq(market.balances(worker2), 0.55 ether);
 
         // Withdraw first so workers can re-stake
         vm.prank(worker1);
@@ -420,19 +425,13 @@ contract CREsolverMarketTest is Test {
         vm.prank(resolver);
         market.resolveMarket(id2, workers, weights, dimScores2, true);
 
-        // Worker1: avg = (80+100)/2=90, (60+80)/2=70, (40+60)/2=50
-        (uint256 r1, uint256 s1, uint256 a1, uint256 c1) = market.getReputation(worker1);
-        assertEq(r1, 90);
-        assertEq(s1, 70);
-        assertEq(a1, 50);
-        assertEq(c1, 2);
+        // Verify market 2 rewards: each worker gets 50% of 2 ether + 0.05 stake
+        assertEq(market.balances(worker1), 1.05 ether);
+        assertEq(market.balances(worker2), 1.05 ether);
 
-        // Worker2: avg = (70+90)/2=80, (50+70)/2=60, (30+50)/2=40
-        (uint256 r2, uint256 s2, uint256 a2, uint256 c2) = market.getReputation(worker2);
-        assertEq(r2, 80);
-        assertEq(s2, 60);
-        assertEq(a2, 40);
-        assertEq(c2, 2);
+        // Both markets resolved
+        assertTrue(market.getMarket(id1).resolved);
+        assertTrue(market.getMarket(id2).resolved);
     }
 
     // ─── ERC-8004 Identity Registry ─────────────────────────────────
@@ -518,21 +517,49 @@ contract CREsolverMarketTest is Test {
         dimScores[0] = 80; dimScores[1] = 70; dimScores[2] = 60;
         dimScores[3] = 90; dimScores[4] = 85; dimScores[5] = 75;
 
-        // Expect giveFeedback calls for both workers
-        // Worker1: avg = (80+70+60)/3 = 70
+        // The contract makes 3 separate giveFeedback calls per worker (one per dimension).
+        // Worker1 scores: resQuality=80, srcQuality=70, analysisDepth=60
         vm.expectCall(
             mockReputation,
             abi.encodeCall(
                 IERC8004Reputation.giveFeedback,
-                (10, int128(70), 0, "resolution", "cresolver", "", "", bytes32(0))
+                (10, int128(80), 0, "resolution_quality", "cresolver", "", "", bytes32(0))
             )
         );
-        // Worker2: avg = (90+85+75)/3 = 83
         vm.expectCall(
             mockReputation,
             abi.encodeCall(
                 IERC8004Reputation.giveFeedback,
-                (20, int128(83), 0, "resolution", "cresolver", "", "", bytes32(0))
+                (10, int128(70), 0, "source_quality", "cresolver", "", "", bytes32(0))
+            )
+        );
+        vm.expectCall(
+            mockReputation,
+            abi.encodeCall(
+                IERC8004Reputation.giveFeedback,
+                (10, int128(60), 0, "analysis_depth", "cresolver", "", "", bytes32(0))
+            )
+        );
+        // Worker2 scores: resQuality=90, srcQuality=85, analysisDepth=75
+        vm.expectCall(
+            mockReputation,
+            abi.encodeCall(
+                IERC8004Reputation.giveFeedback,
+                (20, int128(90), 0, "resolution_quality", "cresolver", "", "", bytes32(0))
+            )
+        );
+        vm.expectCall(
+            mockReputation,
+            abi.encodeCall(
+                IERC8004Reputation.giveFeedback,
+                (20, int128(85), 0, "source_quality", "cresolver", "", "", bytes32(0))
+            )
+        );
+        vm.expectCall(
+            mockReputation,
+            abi.encodeCall(
+                IERC8004Reputation.giveFeedback,
+                (20, int128(75), 0, "analysis_depth", "cresolver", "", "", bytes32(0))
             )
         );
 

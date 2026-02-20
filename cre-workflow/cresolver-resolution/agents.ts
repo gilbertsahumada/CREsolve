@@ -89,6 +89,17 @@ export function queryAllAgents(
   if (determinations.length === 0) {
     throw new Error("No workers responded successfully");
   }
+  if (determinations.length !== workers.length) {
+    const responded = new Set(
+      determinations.map((d) => d.workerAddress.toLowerCase()),
+    );
+    const missing = workers
+      .filter((w) => !responded.has(w.address.toLowerCase()))
+      .map((w) => w.address);
+    throw new Error(
+      `Missing determinations from ${missing.length} worker(s): ${missing.join(", ")}`,
+    );
+  }
 
   runtime.log(
     `${determinations.length}/${workers.length} workers responded`,

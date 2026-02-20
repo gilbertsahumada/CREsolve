@@ -73,8 +73,8 @@ contract CREsolverMarketTest is Test {
 
         vm.deal(worker1, 1 ether);
         vm.prank(worker1);
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.BelowMinStake.selector, 0.001 ether, 0.01 ether));
-        market.joinMarket{value: 0.001 ether}(0, 0);
+        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.BelowMinStake.selector, 0.00001 ether, 0.0001 ether));
+        market.joinMarket{value: 0.00001 ether}(0, 0);
     }
 
     function test_joinMarket_reverts_market_not_active() public {
@@ -250,24 +250,23 @@ contract CREsolverMarketTest is Test {
         market.resolveMarket(id, workers, weights, dimScores, true);
     }
 
-    function test_resolveMarket_reverts_too_many_workers() public {
+    function test_joinMarket_reverts_too_many_workers() public {
         market.createMarket{value: 1 ether}("Q?", 1 days);
 
-        // Create 11 workers
-        address[] memory workers = new address[](11);
-        uint256[] memory weights = new uint256[](11);
-        uint8[] memory dimScores = new uint8[](33);
-        for (uint256 i; i < 11; i++) {
-            workers[i] = address(uint160(100 + i));
-            weights[i] = 1000;
-            vm.deal(workers[i], 1 ether);
-            vm.prank(workers[i]);
+        // First 10 workers can join.
+        for (uint256 i; i < 10; i++) {
+            address worker = address(uint160(100 + i));
+            vm.deal(worker, 1 ether);
+            vm.prank(worker);
             market.joinMarket{value: 0.05 ether}(0, 0);
         }
 
-        vm.prank(resolver);
+        // 11th worker should be rejected on join.
+        address worker11 = address(uint160(110));
+        vm.deal(worker11, 1 ether);
+        vm.prank(worker11);
         vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.TooManyWorkers.selector, 11, 10));
-        market.resolveMarket(0, workers, weights, dimScores, true);
+        market.joinMarket{value: 0.05 ether}(0, 0);
     }
 
     function test_resolveMarket_reverts_array_mismatch() public {
@@ -291,6 +290,9 @@ contract CREsolverMarketTest is Test {
         vm.deal(worker1, 1 ether);
         vm.prank(worker1);
         market.joinMarket{value: 0.05 ether}(0, 0);
+        vm.deal(worker2, 1 ether);
+        vm.prank(worker2);
+        market.joinMarket{value: 0.05 ether}(0, 0);
 
         address[] memory workers = new address[](2);
         workers[0] = worker1;
@@ -303,6 +305,63 @@ contract CREsolverMarketTest is Test {
         vm.prank(resolver);
         vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.UnregisteredWorker.selector, 0, worker3));
         market.resolveMarket(0, workers, weights, dimScores, true);
+    }
+
+    function test_resolveMarket_reverts_duplicate_worker() public {
+        uint256 id = _setupMarketWith2Workers();
+
+        address[] memory workers = new address[](2);
+        workers[0] = worker1;
+        workers[1] = worker1; // duplicate
+
+        uint256[] memory weights = new uint256[](2);
+        weights[0] = 5000;
+        weights[1] = 5000;
+
+        uint8[] memory dimScores = new uint8[](6);
+        dimScores[0] = 80; dimScores[1] = 70; dimScores[2] = 60;
+        dimScores[3] = 90; dimScores[4] = 85; dimScores[5] = 75;
+
+        vm.prank(resolver);
+        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.DuplicateWorker.selector, id, worker1));
+        market.resolveMarket(id, workers, weights, dimScores, true);
+    }
+
+    function test_resolveMarket_reverts_worker_set_mismatch() public {
+        uint256 id = _setupMarketWith2Workers();
+
+        address[] memory workers = new address[](1);
+        workers[0] = worker1;
+
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 10000;
+
+        uint8[] memory dimScores = new uint8[](3);
+        dimScores[0] = 80; dimScores[1] = 70; dimScores[2] = 60;
+
+        vm.prank(resolver);
+        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.WorkerSetMismatch.selector, id, 2, 1));
+        market.resolveMarket(id, workers, weights, dimScores, true);
+    }
+
+    function test_resolveMarket_reverts_zero_total_weight() public {
+        uint256 id = _setupMarketWith2Workers();
+
+        address[] memory workers = new address[](2);
+        workers[0] = worker1;
+        workers[1] = worker2;
+
+        uint256[] memory weights = new uint256[](2);
+        weights[0] = 0;
+        weights[1] = 0;
+
+        uint8[] memory dimScores = new uint8[](6);
+        dimScores[0] = 80; dimScores[1] = 70; dimScores[2] = 60;
+        dimScores[3] = 90; dimScores[4] = 85; dimScores[5] = 75;
+
+        vm.prank(resolver);
+        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.ZeroTotalWeight.selector, id));
+        market.resolveMarket(id, workers, weights, dimScores, true);
     }
 
     // ─── withdraw ──────────────────────────────────────────────────────

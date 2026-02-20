@@ -45,7 +45,7 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     mapping(address => bool) public authorizedResolvers;
     mapping(address => Reputation) public reputation;
 
-    uint256 public minStake = 0.01 ether;
+    uint256 public minStake = 0.0001 ether;
 
     uint256 public constant MAX_WORKERS = 10;
 
@@ -75,6 +75,9 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     error NotMarketCreator(uint256 marketId, address caller);
     error NotAgentOwner(address caller, uint256 agentId);
     error ZeroAddress();
+    error DuplicateWorker(uint256 marketId, address worker);
+    error WorkerSetMismatch(uint256 marketId, uint256 expected, uint256 provided);
+    error ZeroTotalWeight(uint256 marketId);
     // ─── Constructor ───────────────────────────────────────────────────
     constructor(address _identityRegistry, address _reputationRegistry) Ownable(msg.sender) {
         bool identityUnset = _identityRegistry == address(0);
@@ -119,6 +122,8 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         if (!isMarketActive(marketId)) revert MarketNotActive(marketId);
         if (msg.value < minStake) revert BelowMinStake(msg.value, minStake);
         if (stakes[marketId][msg.sender] > 0) revert AlreadyJoined(marketId, msg.sender);
+        uint256 workerCount = _marketWorkers[marketId].length;
+        if (workerCount >= MAX_WORKERS) revert TooManyWorkers(workerCount + 1, MAX_WORKERS);
 
         // ERC-8004 identity check (only if registry is set)
         if (address(identityRegistry) != address(0)) {
@@ -154,6 +159,7 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         for (uint256 i; i < workers.length; i++) {
             totalWeight += weights[i];
         }
+        if (totalWeight == 0) revert ZeroTotalWeight(marketId);
 
         _distributeRewards(marketId, workers, weights, totalWeight);
         _updateReputation(marketId, workers, dimScores);
@@ -177,9 +183,16 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         if (workers.length != weights.length || dimScores.length != workers.length * 3)
             revert ArrayMismatch(workers.length, weights.length, dimScores.length);
         if (!authorizedResolvers[msg.sender]) revert Unauthorized(msg.sender);
+        uint256 expectedWorkers = _marketWorkers[marketId].length;
+        if (workers.length != expectedWorkers) {
+            revert WorkerSetMismatch(marketId, expectedWorkers, workers.length);
+        }
 
         for (uint256 i; i < workers.length; i++) {
             if (stakes[marketId][workers[i]] == 0) revert UnregisteredWorker(marketId, workers[i]);
+            for (uint256 j; j < i; j++) {
+                if (workers[i] == workers[j]) revert DuplicateWorker(marketId, workers[i]);
+            }
         }
     }
 

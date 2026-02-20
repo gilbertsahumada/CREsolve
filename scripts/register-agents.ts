@@ -6,7 +6,7 @@
  *   1. Calls register("CREsolver Agent <Name>") → mints agent NFT (deployer is owner)
  *   2. Calls setAgentURI(agentId, data:application/json;base64,<registration-v1>)
  *   3. Calls approve(workerAddress, agentId) → so worker can pass isAuthorizedOrOwner
- *   4. Calls setMetadata for worker/owner/registry/profileVersion keys
+ *   4. Optionally writes custom setMetadata keys (none by default)
  *   5. Funds worker wallet with Sepolia ETH (for joinMarket later)
  *
  * Updates sepolia-agents.json with agentIds.
@@ -280,14 +280,18 @@ async function main() {
       profileContext,
       deployer.address,
     );
-    for (const entry of metadataEntries) {
-      const metadataTx = await identity.setMetadata(
-        agent.agentId,
-        entry.key,
-        abi.encode([entry.abiType], [entry.value]),
-      );
-      await metadataTx.wait();
-      console.log(`    setMetadata(${entry.key}): ok`);
+    if (metadataEntries.length === 0) {
+      console.log("    No custom metadata keys configured (standards-only profile).");
+    } else {
+      for (const entry of metadataEntries) {
+        const metadataTx = await identity.setMetadata(
+          agent.agentId,
+          entry.key,
+          abi.encode([entry.abiType], [entry.value]),
+        );
+        await metadataTx.wait();
+        console.log(`    setMetadata(${entry.key}): ok`);
+      }
     }
 
     // 4. Verify

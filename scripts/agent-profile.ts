@@ -22,10 +22,9 @@ export interface OnchainMetadataEntry {
   value: string;
 }
 
-const PROFILE_VERSION = "registration-v1";
 const REGISTRATION_TYPE = "https://eips.ethereum.org/EIPS/eip-8004#registration-v1";
 const REPOSITORY_URL = "https://github.com/gilbertsahumada/chaoschain/tree/main/cresolver";
-const INCLUDE_REPOSITORY_SERVICE = true;
+const INCLUDE_REPOSITORY_SERVICE = false;
 
 function svgDataUri(label: string): string {
   const escaped = label
@@ -90,26 +89,12 @@ export function buildOnchainMetadataEntries(
   context: AgentProfileContext,
   deployerAddress: string,
 ): OnchainMetadataEntry[] {
-  return [
-    {
-      key: "workerAddress",
-      abiType: "address",
-      value: agent.address,
-    },
-    {
-      key: "ownerAddress",
-      abiType: "address",
-      value: deployerAddress,
-    },
-    {
-      key: "agentRegistry",
-      abiType: "string",
-      value: buildAgentRegistryRef(context),
-    },
-    {
-      key: "profileVersion",
-      abiType: "string",
-      value: PROFILE_VERSION,
-    },
-  ];
+  // ERC-8004 standard does not define custom metadata keys.
+  // Keep default behavior standards-only and use agentURI registration file.
+  //
+  // If you want app-specific on-chain metadata keys, return them here.
+  void agent;
+  void context;
+  void deployerAddress;
+  return [];
 }

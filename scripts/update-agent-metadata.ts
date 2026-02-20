@@ -4,14 +4,10 @@
  * For each agent from scripts/sepolia-agents.json:
  * 1) setAgentURI(agentId, data:application/json;base64,<registration-file>)
  *    - registration file follows EIP-8004 registration-v1 shape.
- * 2) setMetadata(agentId, "workerAddress", abi.encode(address))
- * 3) setMetadata(agentId, "ownerAddress", abi.encode(address)) // deployer
- * 4) setMetadata(agentId, "agentRegistry", abi.encode(string))
- * 5) setMetadata(agentId, "profileVersion", abi.encode(string))
+ * 2) optional custom setMetadata keys from scripts/agent-profile.ts
  *
  * Notes:
  * - Reserved key "agentWallet" is NOT set via setMetadata (per spec).
- * - The deployer is used as ownerAddress metadata value.
  * - Metadata/profile schema is imported from scripts/agent-profile.ts
  *
  * Usage:
@@ -147,22 +143,26 @@ async function main() {
       profileContext,
       deployerAddress,
     );
-    for (const entry of metadataEntries) {
-      const setMetadataTx = await identity.setMetadata(
-        agentId,
-        entry.key,
-        abi.encode([entry.abiType], [entry.value]),
-      );
-      await setMetadataTx.wait();
-      console.log(`setMetadata(${entry.key}): ok`);
-    }
+    if (metadataEntries.length === 0) {
+      console.log("No custom metadata keys configured (standards-only profile).");
+    } else {
+      for (const entry of metadataEntries) {
+        const setMetadataTx = await identity.setMetadata(
+          agentId,
+          entry.key,
+          abi.encode([entry.abiType], [entry.value]),
+        );
+        await setMetadataTx.wait();
+        console.log(`setMetadata(${entry.key}): ok`);
+      }
 
-    for (const entry of metadataEntries) {
-      const storedValue = abi.decode(
-        [entry.abiType],
-        await identity.getMetadata(agentId, entry.key),
-      )[0];
-      console.log(`verify ${entry.key}: ${storedValue}`);
+      for (const entry of metadataEntries) {
+        const storedValue = abi.decode(
+          [entry.abiType],
+          await identity.getMetadata(agentId, entry.key),
+        )[0];
+        console.log(`verify ${entry.key}: ${storedValue}`);
+      }
     }
 
     const agentWallet = await identity.getAgentWallet(agentId);

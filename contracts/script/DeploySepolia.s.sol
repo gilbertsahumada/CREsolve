@@ -21,11 +21,11 @@ import {CREReceiver} from "../src/CREReceiver.sol";
  *     --rpc-url $SEPOLIA_RPC --broadcast -vvvv
  */
 contract DeploySepoliaScript is Script {
-    // Sepolia ERC-8004 addresses
-    address constant IDENTITY_REGISTRY = 0x8004A818BFB912233c491871b3d84c89A494BD9e;
-    address constant REPUTATION_REGISTRY = 0x8004B663056A597Dffe9eCcC1965A193B7388713;
-
     function run() external {
+        // Sepolia ERC-8004 addresses (overridable via env)
+        address IDENTITY_REGISTRY = vm.envOr("ERC8004_IDENTITY", 0x8004A818BFB912233c491871b3d84c89A494BD9e);
+        address REPUTATION_REGISTRY = vm.envOr("ERC8004_REPUTATION", 0x8004B663056A597Dffe9eCcC1965A193B7388713);
+
         // ── Read sepolia-agents.json ─────────────────────────────────────
         string memory json = vm.readFile("../scripts/sepolia-agents.json");
 

@@ -13,6 +13,8 @@ contracts/broadcast/
 # Environment
 .env
 .env.*
+!.env.example
+!contracts/.env.example
 
 # Generated config
 scripts/demo-config.json

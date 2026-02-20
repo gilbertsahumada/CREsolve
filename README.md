@@ -230,7 +230,9 @@ cresolver/
 │
 └── docs_final/                  # Architecture documentation
     ├── BLUEPRINT.md
-    └── IMPLEMENTATION_GUIDE.md
+    ├── IMPLEMENTATION_GUIDE.md
+    ├── HACKATHON_ONE_PAGER.md
+    └── PRIVACY_ROADMAP.md
 ```
 
 ## Configuration
@@ -320,3 +322,4 @@ For comprehensive architecture and implementation details:
 - **[BLUEPRINT.md](docs_final/BLUEPRINT.md)** — System architecture, design decisions, on-chain/off-chain dimension model
 - **[IMPLEMENTATION_GUIDE.md](docs_final/IMPLEMENTATION_GUIDE.md)** — Full implementation reference with code, progress tracking, and deployment guide
 - **[HACKATHON_ONE_PAGER.md](docs_final/HACKATHON_ONE_PAGER.md)** — Jury/demo one-page source of truth (architecture + algorithm + E2E checklist)
+- **[PRIVACY_ROADMAP.md](docs_final/PRIVACY_ROADMAP.md)** — Phased privacy design (Confidential HTTP first, private rewards later)

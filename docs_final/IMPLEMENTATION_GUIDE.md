@@ -93,7 +93,9 @@ cresolver/
 │   └── types.ts                        # Shared TypeScript interfaces
 └── docs_final/
     ├── BLUEPRINT.md                    # Architecture & design
-    └── IMPLEMENTATION_GUIDE.md         # This file
+    ├── IMPLEMENTATION_GUIDE.md         # This file
+    ├── HACKATHON_ONE_PAGER.md          # Jury/demo summary
+    └── PRIVACY_ROADMAP.md              # Privacy phased design
 ```
 
 ---

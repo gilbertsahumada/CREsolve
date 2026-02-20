@@ -10,6 +10,7 @@ Foundry project for CREsolver smart contracts.
 - `src/interfaces/erc8004/*`: optional ERC-8004 identity/reputation interfaces.
 - `script/Deploy.s.sol`: generic deploy script (local or testnet via env vars).
 - `script/DeploySepolia.s.sol`: Sepolia flow with `scripts/sepolia-agents.json`.
+- `DEPLOYMENTS.md`: public deployment registry and address table by network.
 - `test/CREsolverMarket.t.sol`: market contract tests.
 - `test/CREReceiver.t.sol`: receiver contract tests.
 - `test/CREsolverMarketFork.t.sol`: Sepolia fork test against real ERC-8004 registries.
@@ -39,6 +40,9 @@ forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
 
 # Deploy Sepolia scenario
 forge script script/DeploySepolia.s.sol --rpc-url $SEPOLIA_RPC --broadcast -vvvv
+
+# Or from repo root (loads contracts/.env automatically)
+yarn sepolia:deploy
 ```
 
 ## Env Vars

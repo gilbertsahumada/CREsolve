@@ -29,17 +29,17 @@ yarn sepolia:wallets
 
 Registrar agentes ERC-8004:
 ```bash
-DEPLOYER_KEY=0x... SEPOLIA_RPC=https://... yarn sepolia:register
+yarn sepolia:register
 ```
 
 Verificar consistencia y autorización:
 ```bash
-SEPOLIA_RPC=https://... yarn sepolia:verify
+yarn sepolia:verify
 ```
 
 Exportar archivo público sin private keys:
 ```bash
-SEPOLIA_RPC=https://... yarn sepolia:verify --public-out sepolia-agents.public.json
+yarn sepolia:verify --public-out sepolia-agents.public.json
 ```
 
 Notas:
@@ -55,8 +55,7 @@ Notas:
 ## 4) Deploy Sepolia de referencia
 
 ```bash
-cd contracts
-DEPLOYER_KEY=0x... forge script script/DeploySepolia.s.sol --rpc-url $SEPOLIA_RPC --broadcast -vvvv
+yarn sepolia:deploy
 ```
 
 Salida esperada:

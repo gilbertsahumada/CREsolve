@@ -45,6 +45,7 @@ yarn e2e
 # Sepolia helpers
 yarn sepolia:wallets
 yarn sepolia:register
+yarn sepolia:deploy
 yarn sepolia:verify
 ```
 
@@ -157,15 +158,15 @@ It deploys `CREsolverMarket`, creates 3 markets, funds workers, and writes the t
 # 1. Generate 3 worker wallets
 yarn sepolia:wallets
 
-# 2. Register agent IDs on ERC-8004 IdentityRegistry
-DEPLOYER_KEY=0x... SEPOLIA_RPC=https://... yarn sepolia:register
+# 2. Fill contracts/.env with DEPLOYER_KEY + SEPOLIA_RPC
+# 3. Register agent IDs on ERC-8004 IdentityRegistry
+yarn sepolia:register
 
-# 3. Verify wallets/agent auth and export public judge file (optional)
-SEPOLIA_RPC=https://... yarn sepolia:verify --public-out sepolia-agents.public.json
+# 4. Verify wallets/agent auth and export public judge file (optional)
+yarn sepolia:verify --public-out sepolia-agents.public.json
 
-# 4. Deploy contracts + create market + auto-join workers
-cd contracts
-DEPLOYER_KEY=0x... forge script script/DeploySepolia.s.sol --rpc-url $SEPOLIA_RPC --broadcast -vvvv
+# 5. Deploy contracts + create market + auto-join workers
+yarn sepolia:deploy
 ```
 
 ## Project Structure

@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {CREReceiver} from "../src/CREReceiver.sol";
 import {CREsolverMarket} from "../src/CREsolverMarket.sol";
+import {Market} from "../src/lib/CREsolverMarketTypes.sol";
 import {ReceiverTemplate} from "../src/interfaces/ReceiverTemplate.sol";
 import {IReceiver} from "../src/interfaces/IReceiver.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -11,6 +12,9 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 contract CREReceiverTest is Test {
     CREsolverMarket public market;
     CREReceiver public receiver;
+
+    address mockIdentity = makeAddr("mockIdentityRegistry");
+    address mockReputation = makeAddr("mockReputationRegistry");
 
     address forwarder = makeAddr("forwarder");
     address worker1 = makeAddr("worker1");
@@ -25,7 +29,12 @@ contract CREReceiverTest is Test {
     }
 
     function setUp() public {
-        market = new CREsolverMarket(address(0), address(0));
+        market = new CREsolverMarket(mockIdentity, mockReputation);
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)"))),
+            abi.encode(true)
+        );
         receiver = new CREReceiver(address(market), forwarder);
 
         // Authorize the receiver as a resolver on the market
@@ -65,7 +74,7 @@ contract CREReceiverTest is Test {
         receiver.onReport(metadata, report);
 
         // Verify market was resolved
-        CREsolverMarket.Market memory m = market.getMarket(0);
+        Market memory m = market.getMarket(0);
         assertTrue(m.resolved);
 
         // Verify rewards distributed

@@ -6,6 +6,9 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IERC8004IdentityV1} from "./interfaces/erc8004/IERC8004IdentityV1.sol";
 import {IERC8004Reputation} from "./interfaces/erc8004/IERC8004Reputation.sol";
 
+import {Market, Reputation} from "./lib/CREsolverMarketTypes.sol";
+import "./lib/CREsolverMarketErrors.sol";
+
 /**
  * @title CREsolverMarket
  * @notice Standalone market contract for CREsolver hackathon.
@@ -13,22 +16,6 @@ import {IERC8004Reputation} from "./interfaces/erc8004/IERC8004Reputation.sol";
  *         resolution, and reputation in a single contract.
  */
 contract CREsolverMarket is Ownable, ReentrancyGuard {
-    // ─── Structs ───────────────────────────────────────────────────────
-    struct Market {
-        string question;
-        uint256 rewardPool;
-        uint256 deadline;
-        address creator;
-        bool resolved;
-    }
-
-    struct Reputation {
-        uint256 resQualitySum;
-        uint256 srcQualitySum;
-        uint256 analysisDepthSum;
-        uint256 count;
-    }
-
     // ─── ERC-8004 Registries (optional, address(0) = disabled) ────────
     IERC8004IdentityV1 public immutable identityRegistry;
     IERC8004Reputation public immutable reputationRegistry;
@@ -50,36 +37,33 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     uint256 public constant MAX_WORKERS = 10;
 
     // ─── Events ────────────────────────────────────────────────────────
-    event MarketCreated(uint256 indexed marketId, address indexed creator, string question, uint256 rewardPool, uint256 deadline);
-    event WorkerJoined(uint256 indexed marketId, address indexed worker, uint256 stake, uint256 agentId);
-    event MarketResolved(uint256 indexed marketId, address indexed resolver, bool resolution);
+    event MarketCreated(
+        uint256 indexed marketId,
+        address indexed creator,
+        string question,
+        uint256 rewardPool,
+        uint256 deadline
+    );
+    event WorkerJoined(
+        uint256 indexed marketId,
+        address indexed worker,
+        uint256 stake,
+        uint256 agentId
+    );
+    event MarketResolved(
+        uint256 indexed marketId,
+        address indexed resolver,
+        bool resolution
+    );
     event ResolverUpdated(address indexed resolver, bool authorized);
     event Withdrawal(address indexed account, uint256 amount);
     event ResolutionRequested(uint256 indexed marketId, string question);
 
-    // ─── Errors ────────────────────────────────────────────────────────
-    error EmptyQuestion();
-    error ZeroValue();
-    error InvalidDuration();
-    error MarketNotActive(uint256 marketId);
-    error BelowMinStake(uint256 sent, uint256 required);
-    error AlreadyJoined(uint256 marketId, address worker);
-    error Unauthorized(address caller);
-    error AlreadyResolved(uint256 marketId);
-    error TooManyWorkers(uint256 count, uint256 max);
-    error ArrayMismatch(uint256 workersLen, uint256 weightsLen, uint256 scoresLen);
-    error UnregisteredWorker(uint256 marketId, address worker);
-    error NoBalance();
-    error MarketDoesNotExist(uint256 marketId);
-    error MarketAlreadyResolved(uint256 marketId);
-    error NotMarketCreator(uint256 marketId, address caller);
-    error NotAgentOwner(address caller, uint256 agentId);
-    error ZeroAddress();
-    error DuplicateWorker(uint256 marketId, address worker);
-    error WorkerSetMismatch(uint256 marketId, uint256 expected, uint256 provided);
-    error ZeroTotalWeight(uint256 marketId);
     // ─── Constructor ───────────────────────────────────────────────────
-    constructor(address _identityRegistry, address _reputationRegistry) Ownable(msg.sender) {
+    constructor(
+        address _identityRegistry,
+        address _reputationRegistry
+    ) Ownable(msg.sender) {
         bool identityUnset = _identityRegistry == address(0);
         bool reputationUnset = _reputationRegistry == address(0);
         // Allow either fully disabled (both zero) or fully enabled (both non-zero).
@@ -96,7 +80,10 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
      * @param duration Duration in seconds until the market deadline
      * @return marketId The ID of the newly created market
      */
-    function createMarket(string calldata question, uint256 duration) external payable returns (uint256 marketId) {
+    function createMarket(
+        string calldata question,
+        uint256 duration
+    ) external payable returns (uint256 marketId) {
         if (bytes(question).length == 0) revert EmptyQuestion();
         if (msg.value == 0) revert ZeroValue();
         if (duration == 0) revert InvalidDuration();
@@ -110,7 +97,13 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
             resolved: false
         });
 
-        emit MarketCreated(marketId, msg.sender, question, msg.value, block.timestamp + duration);
+        emit MarketCreated(
+            marketId,
+            msg.sender,
+            question,
+            msg.value,
+            block.timestamp + duration
+        );
     }
 
     /**
@@ -124,13 +117,9 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         if (stakes[marketId][msg.sender] > 0) revert AlreadyJoined(marketId, msg.sender);
         uint256 workerCount = _marketWorkers[marketId].length;
         if (workerCount >= MAX_WORKERS) revert TooManyWorkers(workerCount + 1, MAX_WORKERS);
+        if (!identityRegistry.isAuthorizedOrOwner(msg.sender, agentId)) revert NotAgentOwner(msg.sender, agentId);
 
-        // ERC-8004 identity check (only if registry is set)
-        if (address(identityRegistry) != address(0)) {
-            if (!identityRegistry.isAuthorizedOrOwner(msg.sender, agentId))
-                revert NotAgentOwner(msg.sender, agentId);
-            workerAgentIds[marketId][msg.sender] = agentId;
-        }
+        workerAgentIds[marketId][msg.sender] = agentId;
 
         stakes[marketId][msg.sender] = msg.value;
         _marketWorkers[marketId].push(msg.sender);
@@ -180,8 +169,15 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         if (m.resolved) revert AlreadyResolved(marketId);
         if (m.deadline == 0) revert MarketNotActive(marketId);
         if (workers.length > MAX_WORKERS) revert TooManyWorkers(workers.length, MAX_WORKERS);
-        if (workers.length != weights.length || dimScores.length != workers.length * 3)
-            revert ArrayMismatch(workers.length, weights.length, dimScores.length);
+        if (
+            workers.length != weights.length ||
+            dimScores.length != workers.length * 3
+        )
+            revert ArrayMismatch(
+                workers.length,
+                weights.length,
+                dimScores.length
+            );
         if (!authorizedResolvers[msg.sender]) revert Unauthorized(msg.sender);
         uint256 expectedWorkers = _marketWorkers[marketId].length;
         if (workers.length != expectedWorkers) {
@@ -189,9 +185,11 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         }
 
         for (uint256 i; i < workers.length; i++) {
-            if (stakes[marketId][workers[i]] == 0) revert UnregisteredWorker(marketId, workers[i]);
+            if (stakes[marketId][workers[i]] == 0)
+                revert UnregisteredWorker(marketId, workers[i]);
             for (uint256 j; j < i; j++) {
-                if (workers[i] == workers[j]) revert DuplicateWorker(marketId, workers[i]);
+                if (workers[i] == workers[j])
+                    revert DuplicateWorker(marketId, workers[i]);
             }
         }
     }
@@ -235,16 +233,34 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
             if (agentId == 0) continue;
 
             reputationRegistry.giveFeedback(
-                agentId, int128(int256(uint256(resQ))), 0,
-                "resolution_quality", "cresolver", "", "", bytes32(0)
+                agentId,
+                int128(int256(uint256(resQ))),
+                0,
+                "resolution_quality",
+                "cresolver",
+                "",
+                "",
+                bytes32(0)
             );
             reputationRegistry.giveFeedback(
-                agentId, int128(int256(uint256(srcQ))), 0,
-                "source_quality", "cresolver", "", "", bytes32(0)
+                agentId,
+                int128(int256(uint256(srcQ))),
+                0,
+                "source_quality",
+                "cresolver",
+                "",
+                "",
+                bytes32(0)
             );
             reputationRegistry.giveFeedback(
-                agentId, int128(int256(uint256(depthQ))), 0,
-                "analysis_depth", "cresolver", "", "", bytes32(0)
+                agentId,
+                int128(int256(uint256(depthQ))),
+                0,
+                "analysis_depth",
+                "cresolver",
+                "",
+                "",
+                bytes32(0)
             );
         }
     }
@@ -257,7 +273,7 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         if (amount == 0) revert NoBalance();
 
         balances[msg.sender] = 0;
-        (bool success,) = msg.sender.call{value: amount}("");
+        (bool success, ) = msg.sender.call{value: amount}("");
         require(success, "Transfer failed");
 
         emit Withdrawal(msg.sender, amount);
@@ -268,7 +284,10 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
      * @param resolver The resolver address
      * @param authorized Whether to authorize or revoke
      */
-    function setAuthorizedResolver(address resolver, bool authorized) external onlyOwner {
+    function setAuthorizedResolver(
+        address resolver,
+        bool authorized
+    ) external onlyOwner {
         authorizedResolvers[resolver] = authorized;
         emit ResolverUpdated(resolver, authorized);
     }
@@ -281,7 +300,8 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         Market storage m = markets[marketId];
         if (m.deadline == 0) revert MarketDoesNotExist(marketId);
         if (m.resolved) revert MarketAlreadyResolved(marketId);
-        if (m.creator != msg.sender && msg.sender != owner()) revert NotMarketCreator(marketId, msg.sender);
+        if (m.creator != msg.sender && msg.sender != owner())
+            revert NotMarketCreator(marketId, msg.sender);
 
         emit ResolutionRequested(marketId, m.question);
     }
@@ -292,7 +312,9 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         return markets[marketId];
     }
 
-    function getMarketWorkers(uint256 marketId) external view returns (address[] memory) {
+    function getMarketWorkers(
+        uint256 marketId
+    ) external view returns (address[] memory) {
         return _marketWorkers[marketId];
     }
 
@@ -301,12 +323,18 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         return m.deadline > 0 && !m.resolved && block.timestamp <= m.deadline;
     }
 
-    function getReputation(address worker) external view returns (
-        uint256 resQuality,
-        uint256 srcQuality,
-        uint256 analysisDepth,
-        uint256 count
-    ) {
+    function getReputation(
+        address worker
+    )
+        external
+        view
+        returns (
+            uint256 resQuality,
+            uint256 srcQuality,
+            uint256 analysisDepth,
+            uint256 count
+        )
+    {
         Reputation storage rep = reputation[worker];
         count = rep.count;
         if (count == 0) return (0, 0, 0, 0);
@@ -316,7 +344,11 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         analysisDepth = rep.analysisDepthSum / count;
     }
 
-    function getScoringCriteria() external pure returns (string[8] memory names, uint256[8] memory weights) {
+    function getScoringCriteria()
+        external
+        pure
+        returns (string[8] memory names, uint256[8] memory weights)
+    {
         names = [
             "Resolution Quality",
             "Source Quality",

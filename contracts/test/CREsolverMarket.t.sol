@@ -3,6 +3,8 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {CREsolverMarket} from "../src/CREsolverMarket.sol";
+import {Market} from "../src/lib/CREsolverMarketTypes.sol";
+import "../src/lib/CREsolverMarketErrors.sol";
 import {IERC8004Reputation} from "../src/interfaces/erc8004/IERC8004Reputation.sol";
 
 contract CREsolverMarketTest is Test {
@@ -18,7 +20,12 @@ contract CREsolverMarketTest is Test {
     address worker3 = makeAddr("worker3");
 
     function setUp() public {
-        market = new CREsolverMarket(address(0), address(0));
+        market = new CREsolverMarket(mockIdentity, mockReputation);
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)"))),
+            abi.encode(true)
+        );
         market.setAuthorizedResolver(resolver, true);
     }
 
@@ -28,7 +35,7 @@ contract CREsolverMarketTest is Test {
         uint256 id = market.createMarket{value: 1 ether}("Will ETH hit 10k?", 1 days);
         assertEq(id, 0);
 
-        CREsolverMarket.Market memory m = market.getMarket(0);
+        Market memory m = market.getMarket(0);
         assertEq(m.question, "Will ETH hit 10k?");
         assertEq(m.rewardPool, 1 ether);
         assertEq(m.deadline, block.timestamp + 1 days);
@@ -38,17 +45,17 @@ contract CREsolverMarketTest is Test {
     }
 
     function test_createMarket_reverts_empty_question() public {
-        vm.expectRevert(CREsolverMarket.EmptyQuestion.selector);
+        vm.expectRevert(EmptyQuestion.selector);
         market.createMarket{value: 1 ether}("", 1 days);
     }
 
     function test_createMarket_reverts_zero_value() public {
-        vm.expectRevert(CREsolverMarket.ZeroValue.selector);
+        vm.expectRevert(ZeroValue.selector);
         market.createMarket{value: 0}("Will ETH hit 10k?", 1 days);
     }
 
     function test_createMarket_reverts_invalid_duration() public {
-        vm.expectRevert(CREsolverMarket.InvalidDuration.selector);
+        vm.expectRevert(InvalidDuration.selector);
         market.createMarket{value: 1 ether}("Will ETH hit 10k?", 0);
     }
 
@@ -73,7 +80,7 @@ contract CREsolverMarketTest is Test {
 
         vm.deal(worker1, 1 ether);
         vm.prank(worker1);
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.BelowMinStake.selector, 0.00001 ether, 0.0001 ether));
+        vm.expectRevert(abi.encodeWithSelector(BelowMinStake.selector, 0.00001 ether, 0.0001 ether));
         market.joinMarket{value: 0.00001 ether}(0, 0);
     }
 
@@ -85,7 +92,7 @@ contract CREsolverMarketTest is Test {
 
         vm.deal(worker1, 1 ether);
         vm.prank(worker1);
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.MarketNotActive.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(MarketNotActive.selector, 0));
         market.joinMarket{value: 0.05 ether}(0, 0);
     }
 
@@ -96,7 +103,7 @@ contract CREsolverMarketTest is Test {
         vm.startPrank(worker1);
         market.joinMarket{value: 0.05 ether}(0, 0);
 
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.AlreadyJoined.selector, 0, worker1));
+        vm.expectRevert(abi.encodeWithSelector(AlreadyJoined.selector, 0, worker1));
         market.joinMarket{value: 0.05 ether}(0, 0);
         vm.stopPrank();
     }
@@ -139,7 +146,7 @@ contract CREsolverMarketTest is Test {
         assertEq(market.balances(worker2), 0.3 ether + 0.05 ether);
 
         // Market is resolved
-        CREsolverMarket.Market memory m = market.getMarket(id);
+        Market memory m = market.getMarket(id);
         assertTrue(m.resolved);
     }
 
@@ -193,7 +200,7 @@ contract CREsolverMarketTest is Test {
         market.resolveMarket(id, workers, weights, dimScores, true);
 
         // Verify market resolved and rewards distributed correctly
-        CREsolverMarket.Market memory m = market.getMarket(id);
+        Market memory m = market.getMarket(id);
         assertTrue(m.resolved);
         assertEq(market.balances(worker1), 0.5 ether + 0.05 ether);
         assertEq(market.balances(worker2), 0.5 ether + 0.05 ether);
@@ -224,7 +231,7 @@ contract CREsolverMarketTest is Test {
 
         address nobody = makeAddr("nobody");
         vm.prank(nobody);
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.Unauthorized.selector, nobody));
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, nobody));
         market.resolveMarket(id, workers, weights, dimScores, true);
     }
 
@@ -246,7 +253,7 @@ contract CREsolverMarketTest is Test {
 
         // Second call should revert
         vm.prank(resolver);
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.AlreadyResolved.selector, id));
+        vm.expectRevert(abi.encodeWithSelector(AlreadyResolved.selector, id));
         market.resolveMarket(id, workers, weights, dimScores, true);
     }
 
@@ -265,7 +272,7 @@ contract CREsolverMarketTest is Test {
         address worker11 = address(uint160(110));
         vm.deal(worker11, 1 ether);
         vm.prank(worker11);
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.TooManyWorkers.selector, 11, 10));
+        vm.expectRevert(abi.encodeWithSelector(TooManyWorkers.selector, 11, 10));
         market.joinMarket{value: 0.05 ether}(0, 0);
     }
 
@@ -280,7 +287,7 @@ contract CREsolverMarketTest is Test {
         uint8[] memory dimScores = new uint8[](6);
 
         vm.prank(resolver);
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.ArrayMismatch.selector, 2, 1, 6));
+        vm.expectRevert(abi.encodeWithSelector(ArrayMismatch.selector, 2, 1, 6));
         market.resolveMarket(id, workers, weights, dimScores, true);
     }
 
@@ -303,7 +310,7 @@ contract CREsolverMarketTest is Test {
         uint8[] memory dimScores = new uint8[](6);
 
         vm.prank(resolver);
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.UnregisteredWorker.selector, 0, worker3));
+        vm.expectRevert(abi.encodeWithSelector(UnregisteredWorker.selector, 0, worker3));
         market.resolveMarket(0, workers, weights, dimScores, true);
     }
 
@@ -323,7 +330,7 @@ contract CREsolverMarketTest is Test {
         dimScores[3] = 90; dimScores[4] = 85; dimScores[5] = 75;
 
         vm.prank(resolver);
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.DuplicateWorker.selector, id, worker1));
+        vm.expectRevert(abi.encodeWithSelector(DuplicateWorker.selector, id, worker1));
         market.resolveMarket(id, workers, weights, dimScores, true);
     }
 
@@ -340,7 +347,7 @@ contract CREsolverMarketTest is Test {
         dimScores[0] = 80; dimScores[1] = 70; dimScores[2] = 60;
 
         vm.prank(resolver);
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.WorkerSetMismatch.selector, id, 2, 1));
+        vm.expectRevert(abi.encodeWithSelector(WorkerSetMismatch.selector, id, 2, 1));
         market.resolveMarket(id, workers, weights, dimScores, true);
     }
 
@@ -360,7 +367,7 @@ contract CREsolverMarketTest is Test {
         dimScores[3] = 90; dimScores[4] = 85; dimScores[5] = 75;
 
         vm.prank(resolver);
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.ZeroTotalWeight.selector, id));
+        vm.expectRevert(abi.encodeWithSelector(ZeroTotalWeight.selector, id));
         market.resolveMarket(id, workers, weights, dimScores, true);
     }
 
@@ -393,7 +400,7 @@ contract CREsolverMarketTest is Test {
 
     function test_withdraw_reverts_no_balance() public {
         vm.prank(worker1);
-        vm.expectRevert(CREsolverMarket.NoBalance.selector);
+        vm.expectRevert(NoBalance.selector);
         market.withdraw();
     }
 
@@ -419,7 +426,7 @@ contract CREsolverMarketTest is Test {
     }
 
     function test_requestResolution_reverts_nonexistent_market() public {
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.MarketDoesNotExist.selector, 99));
+        vm.expectRevert(abi.encodeWithSelector(MarketDoesNotExist.selector, 99));
         market.requestResolution(99);
     }
 
@@ -439,7 +446,7 @@ contract CREsolverMarketTest is Test {
         vm.prank(resolver);
         market.resolveMarket(id, workers, weights, dimScores, true);
 
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.MarketAlreadyResolved.selector, id));
+        vm.expectRevert(abi.encodeWithSelector(MarketAlreadyResolved.selector, id));
         market.requestResolution(id);
     }
 
@@ -448,7 +455,7 @@ contract CREsolverMarketTest is Test {
 
         address nobody = makeAddr("nobody");
         vm.prank(nobody);
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.NotMarketCreator.selector, 0, nobody));
+        vm.expectRevert(abi.encodeWithSelector(NotMarketCreator.selector, 0, nobody));
         market.requestResolution(0);
     }
 
@@ -554,7 +561,7 @@ contract CREsolverMarketTest is Test {
 
         vm.deal(worker1, 1 ether);
         vm.prank(worker1);
-        vm.expectRevert(abi.encodeWithSelector(CREsolverMarket.NotAgentOwner.selector, worker1, 99));
+        vm.expectRevert(abi.encodeWithSelector(NotAgentOwner.selector, worker1, 99));
         marketWithId.joinMarket{value: 0.05 ether}(0, 99);
     }
 

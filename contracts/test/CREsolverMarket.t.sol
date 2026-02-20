@@ -8,6 +8,9 @@ import {IERC8004Reputation} from "../src/interfaces/erc8004/IERC8004Reputation.s
 contract CREsolverMarketTest is Test {
     CREsolverMarket public market;
 
+    address mockIdentity = makeAddr("mockIdentityRegistry");
+    address mockReputation = makeAddr("mockReputationRegistry");
+
     address owner = address(this);
     address resolver = makeAddr("resolver");
     address worker1 = makeAddr("worker1");
@@ -460,8 +463,7 @@ contract CREsolverMarketTest is Test {
     // ─── ERC-8004 Identity Registry ─────────────────────────────────
 
     function test_joinMarket_with_identity_registry() public {
-        address mockIdentity = makeAddr("identityRegistry");
-        CREsolverMarket marketWithId = new CREsolverMarket(mockIdentity, address(0));
+        CREsolverMarket marketWithId = new CREsolverMarket(mockIdentity, mockReputation);
         marketWithId.setAuthorizedResolver(resolver, true);
         marketWithId.createMarket{value: 1 ether}("Q?", 1 days);
 
@@ -481,8 +483,7 @@ contract CREsolverMarketTest is Test {
     }
 
     function test_joinMarket_reverts_not_agent_owner() public {
-        address mockIdentity = makeAddr("identityRegistry");
-        CREsolverMarket marketWithId = new CREsolverMarket(mockIdentity, address(0));
+        CREsolverMarket marketWithId = new CREsolverMarket(mockIdentity, mockReputation);
         marketWithId.createMarket{value: 1 ether}("Q?", 1 days);
 
         // Mock isAuthorizedOrOwner to return false
@@ -499,8 +500,6 @@ contract CREsolverMarketTest is Test {
     }
 
     function test_resolveMarket_publishes_erc8004_feedback() public {
-        address mockIdentity = makeAddr("identityRegistry");
-        address mockReputation = makeAddr("reputationRegistry");
         CREsolverMarket marketWithRep = new CREsolverMarket(mockIdentity, mockReputation);
         marketWithRep.setAuthorizedResolver(resolver, true);
         marketWithRep.createMarket{value: 1 ether}("Q?", 1 days);

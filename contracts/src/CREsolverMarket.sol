@@ -74,8 +74,13 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     error MarketAlreadyResolved(uint256 marketId);
     error NotMarketCreator(uint256 marketId, address caller);
     error NotAgentOwner(address caller, uint256 agentId);
+    error ZeroAddress();
     // ─── Constructor ───────────────────────────────────────────────────
     constructor(address _identityRegistry, address _reputationRegistry) Ownable(msg.sender) {
+        bool identityUnset = _identityRegistry == address(0);
+        bool reputationUnset = _reputationRegistry == address(0);
+        // Allow either fully disabled (both zero) or fully enabled (both non-zero).
+        if (identityUnset != reputationUnset) revert ZeroAddress();
         identityRegistry = IERC8004IdentityV1(_identityRegistry);
         reputationRegistry = IERC8004Reputation(_reputationRegistry);
     }

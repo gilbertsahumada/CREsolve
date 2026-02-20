@@ -32,7 +32,7 @@ Registrar agentes ERC-8004:
 yarn sepolia:register
 ```
 
-Actualizar metadata ERC-8004 de los agentes:
+Actualizar metadata ERC-8004 de los agentes (opcional, para refresh/backfill):
 ```bash
 yarn sepolia:metadata
 ```

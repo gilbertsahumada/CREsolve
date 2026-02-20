@@ -163,10 +163,11 @@ yarn sepolia:wallets
 # 3. Register agent IDs on ERC-8004 IdentityRegistry
 yarn sepolia:register
 
-# 4. Update ERC-8004 metadata profile for each agent
+# 4. (Optional) Re-apply/refresh ERC-8004 metadata profile for each agent
+#    Use if you changed metadata schema or migrated old registrations
 yarn sepolia:metadata
 
-# 5. Verify wallets/agent auth and export public judge file (optional)
+# 5. Verify wallets/agent auth and export public judge file
 yarn sepolia:verify --public-out sepolia-agents.public.json
 
 # 6. Deploy contracts + create market + auto-join workers

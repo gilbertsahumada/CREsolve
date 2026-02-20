@@ -14,6 +14,9 @@
  *   - scripts/sepolia-agents.public.json (no private keys)
  *   - contracts/SEPOLIA_AGENTS.md (public markdown table)
  *
+ * Metadata/profile schema source of truth:
+ *   - scripts/agent-profile.ts
+ *
  * Usage:
  *   DEPLOYER_KEY=0x... SEPOLIA_RPC=https://... npx tsx scripts/register-agents.ts
  *
@@ -25,6 +28,12 @@ import { ethers } from "ethers";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  buildAgentDataUri,
+  buildOnchainMetadataEntries,
+  type AgentProfileContext,
+  type AgentProfileInput,
+} from "./agent-profile.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const AGENTS_PATH = resolve(__dirname, "sepolia-agents.json");
@@ -66,49 +75,6 @@ interface SepoliaAgentsConfig {
   identityRegistry: string;
   reputationRegistry: string;
   agents: AgentEntry[];
-}
-
-function svgDataUri(label: string): string {
-  const escaped = label
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="100%" height="100%" fill="#0f172a"/><text x="50%" y="48%" dominant-baseline="middle" text-anchor="middle" fill="#f8fafc" font-size="42" font-family="Arial">CREsolver</text><text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" fill="#cbd5e1" font-size="28" font-family="Arial">${escaped}</text></svg>`;
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
-}
-
-function buildRegistrationFile(
-  agent: AgentEntry,
-  chainId: bigint,
-  identityRegistry: string,
-): Record<string, unknown> {
-  const agentRegistry = `eip155:${chainId}:${identityRegistry}`;
-  return {
-    type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
-    name: `CREsolver ${agent.name}`,
-    description:
-      `CREsolver worker agent ${agent.name} for decentralized prediction market resolution.`,
-    image: svgDataUri(agent.name),
-    services: [
-      {
-        name: "wallet",
-        endpoint: `eip155:${chainId}:${agent.address}`,
-      },
-      {
-        name: "repository",
-        endpoint: "https://github.com/gilbertsahumada/chaoschain/tree/main/cresolver",
-      },
-    ],
-    x402Support: false,
-    active: true,
-    registrations: [
-      {
-        agentId: agent.agentId,
-        agentRegistry,
-      },
-    ],
-    supportedTrust: ["reputation"],
-  };
 }
 
 function writePublicArtifacts(config: SepoliaAgentsConfig, deployerAddress: string) {
@@ -236,7 +202,10 @@ async function main() {
     deployer,
   );
   const abi = ethers.AbiCoder.defaultAbiCoder();
-  const agentRegistryRef = `eip155:${network.chainId}:${config.identityRegistry}`;
+  const profileContext: AgentProfileContext = {
+    chainId: network.chainId,
+    identityRegistry: config.identityRegistry,
+  };
 
   // Register each agent
   for (const agent of config.agents) {
@@ -290,9 +259,12 @@ async function main() {
 
     // 2. Set agentURI with registration-v1 profile (data URI)
     console.log("    Setting registration-v1 agentURI...");
-    const registration = buildRegistrationFile(agent, network.chainId, config.identityRegistry);
-    const registrationJson = JSON.stringify(registration);
-    const dataUri = `data:application/json;base64,${Buffer.from(registrationJson).toString("base64")}`;
+    const profileAgent: AgentProfileInput = {
+      name: agent.name,
+      address: agent.address,
+      agentId: agent.agentId,
+    };
+    const dataUri = buildAgentDataUri(profileAgent, profileContext);
     const setUriTx = await identity.setAgentURI(agent.agentId, dataUri);
     await setUriTx.wait();
 
@@ -303,37 +275,20 @@ async function main() {
 
     // 4. Set metadata fields
     console.log(`    Setting metadata keys...`);
-    const encodedWorkerAddress = abi.encode(
-      ["address"],
-      [agent.address],
+    const metadataEntries = buildOnchainMetadataEntries(
+      profileAgent,
+      profileContext,
+      deployer.address,
     );
-    const workerMetadataTx = await identity.setMetadata(
-      agent.agentId,
-      "workerAddress",
-      encodedWorkerAddress,
-    );
-    await workerMetadataTx.wait();
-
-    const ownerMetadataTx = await identity.setMetadata(
-      agent.agentId,
-      "ownerAddress",
-      abi.encode(["address"], [deployer.address]),
-    );
-    await ownerMetadataTx.wait();
-
-    const registryMetadataTx = await identity.setMetadata(
-      agent.agentId,
-      "agentRegistry",
-      abi.encode(["string"], [agentRegistryRef]),
-    );
-    await registryMetadataTx.wait();
-
-    const profileVersionMetadataTx = await identity.setMetadata(
-      agent.agentId,
-      "profileVersion",
-      abi.encode(["string"], ["registration-v1"]),
-    );
-    await profileVersionMetadataTx.wait();
+    for (const entry of metadataEntries) {
+      const metadataTx = await identity.setMetadata(
+        agent.agentId,
+        entry.key,
+        abi.encode([entry.abiType], [entry.value]),
+      );
+      await metadataTx.wait();
+      console.log(`    setMetadata(${entry.key}): ok`);
+    }
 
     // 4. Verify
     const isAuthorized = await identity.isAuthorizedOrOwner(agent.address, agent.agentId);

@@ -12,6 +12,7 @@
  * Notes:
  * - Reserved key "agentWallet" is NOT set via setMetadata (per spec).
  * - The deployer is used as ownerAddress metadata value.
+ * - Metadata/profile schema is imported from scripts/agent-profile.ts
  *
  * Usage:
  *   DEPLOYER_KEY=0x... SEPOLIA_RPC=https://... npx tsx scripts/update-agent-metadata.ts
@@ -21,6 +22,12 @@ import { ethers } from "ethers";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  buildAgentDataUri,
+  buildOnchainMetadataEntries,
+  type AgentProfileContext,
+  type AgentProfileInput,
+} from "./agent-profile.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const AGENTS_PATH = resolve(__dirname, "sepolia-agents.json");
@@ -57,46 +64,6 @@ function loadConfig(): SepoliaAgentsConfig {
     console.error("Run 'yarn sepolia:wallets' and 'yarn sepolia:register' first.");
     process.exit(1);
   }
-}
-
-function svgDataUri(label: string): string {
-  const escaped = label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="100%" height="100%" fill="#0f172a"/><text x="50%" y="48%" dominant-baseline="middle" text-anchor="middle" fill="#f8fafc" font-size="42" font-family="Arial">CREsolver</text><text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" fill="#cbd5e1" font-size="28" font-family="Arial">${escaped}</text></svg>`;
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
-}
-
-function buildRegistrationFile(
-  agent: AgentEntry,
-  chainId: bigint,
-  identityRegistry: string,
-): Record<string, unknown> {
-  const agentRegistry = `eip155:${chainId}:${identityRegistry}`;
-  return {
-    type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
-    name: `CREsolver ${agent.name}`,
-    description:
-      `CREsolver worker agent ${agent.name} for decentralized prediction market resolution.`,
-    image: svgDataUri(agent.name),
-    services: [
-      {
-        name: "wallet",
-        endpoint: `eip155:${chainId}:${agent.address}`,
-      },
-      {
-        name: "repository",
-        endpoint: "https://github.com/gilbertsahumada/chaoschain/tree/main/cresolver",
-      },
-    ],
-    x402Support: false,
-    active: true,
-    registrations: [
-      {
-        agentId: agent.agentId,
-        agentRegistry,
-      },
-    ],
-    supportedTrust: ["reputation"],
-  };
 }
 
 async function main() {
@@ -147,11 +114,19 @@ async function main() {
   );
 
   const abi = ethers.AbiCoder.defaultAbiCoder();
-  const agentRegistry = `eip155:${network.chainId}:${config.identityRegistry}`;
+  const profileContext: AgentProfileContext = {
+    chainId: network.chainId,
+    identityRegistry: config.identityRegistry,
+  };
 
   for (const agent of config.agents) {
     const agentId = agent.agentId as number;
     console.log(`--- ${agent.name} (agentId=${agentId}) ---`);
+    const profileAgent: AgentProfileInput = {
+      name: agent.name,
+      address: agent.address,
+      agentId,
+    };
 
     const owner = await identity.ownerOf(agentId);
     if (owner.toLowerCase() !== deployerAddress.toLowerCase()) {
@@ -161,64 +136,38 @@ async function main() {
       process.exit(1);
     }
 
-    const registration = buildRegistrationFile(agent, network.chainId, config.identityRegistry);
-    const registrationJson = JSON.stringify(registration);
-    const dataUri = `data:application/json;base64,${Buffer.from(registrationJson).toString("base64")}`;
+    const dataUri = buildAgentDataUri(profileAgent, profileContext);
 
     const setUriTx = await identity.setAgentURI(agentId, dataUri);
     await setUriTx.wait();
     console.log("setAgentURI: ok");
 
-    const setWorkerTx = await identity.setMetadata(
-      agentId,
-      "workerAddress",
-      abi.encode(["address"], [agent.address]),
+    const metadataEntries = buildOnchainMetadataEntries(
+      profileAgent,
+      profileContext,
+      deployerAddress,
     );
-    await setWorkerTx.wait();
-    console.log("setMetadata(workerAddress): ok");
+    for (const entry of metadataEntries) {
+      const setMetadataTx = await identity.setMetadata(
+        agentId,
+        entry.key,
+        abi.encode([entry.abiType], [entry.value]),
+      );
+      await setMetadataTx.wait();
+      console.log(`setMetadata(${entry.key}): ok`);
+    }
 
-    const setOwnerTx = await identity.setMetadata(
-      agentId,
-      "ownerAddress",
-      abi.encode(["address"], [deployerAddress]),
-    );
-    await setOwnerTx.wait();
-    console.log("setMetadata(ownerAddress): ok");
+    for (const entry of metadataEntries) {
+      const storedValue = abi.decode(
+        [entry.abiType],
+        await identity.getMetadata(agentId, entry.key),
+      )[0];
+      console.log(`verify ${entry.key}: ${storedValue}`);
+    }
 
-    const setRegistryTx = await identity.setMetadata(
-      agentId,
-      "agentRegistry",
-      abi.encode(["string"], [agentRegistry]),
-    );
-    await setRegistryTx.wait();
-    console.log("setMetadata(agentRegistry): ok");
-
-    const setProfileVersionTx = await identity.setMetadata(
-      agentId,
-      "profileVersion",
-      abi.encode(["string"], ["registration-v1"]),
-    );
-    await setProfileVersionTx.wait();
-    console.log("setMetadata(profileVersion): ok");
-
-    const storedWorker = abi.decode(
-      ["address"],
-      await identity.getMetadata(agentId, "workerAddress"),
-    )[0];
-    const storedOwner = abi.decode(
-      ["address"],
-      await identity.getMetadata(agentId, "ownerAddress"),
-    )[0];
-    const storedRegistry = abi.decode(
-      ["string"],
-      await identity.getMetadata(agentId, "agentRegistry"),
-    )[0];
     const agentWallet = await identity.getAgentWallet(agentId);
     const uri = await identity.tokenURI(agentId);
 
-    console.log(`verify workerAddress: ${storedWorker}`);
-    console.log(`verify ownerAddress: ${storedOwner}`);
-    console.log(`verify agentRegistry: ${storedRegistry}`);
     console.log(`verify agentWallet: ${agentWallet}`);
     console.log(`verify tokenURI prefix: ${uri.slice(0, 32)}...`);
     console.log();

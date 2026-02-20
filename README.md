@@ -174,6 +174,9 @@ yarn sepolia:verify --public-out sepolia-agents.public.json
 yarn sepolia:deploy
 ```
 
+Metadata schema source of truth:
+- `scripts/agent-profile.ts` (registration-v1 JSON + on-chain metadata keys)
+
 ## Project Structure
 
 ```

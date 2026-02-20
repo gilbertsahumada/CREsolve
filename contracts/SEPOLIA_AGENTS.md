@@ -1,6 +1,6 @@
 # Sepolia Agents (Public)
 
-Last updated: 2026-02-20T13:23:40.466Z
+Last updated: 2026-02-20T18:10:18.388Z
 
 ## Registry Config
 

@@ -12,6 +12,7 @@
     "local:demo": "cd scripts && npx tsx demo-run.ts",
     "sepolia:wallets": "cd scripts && npx tsx generate-wallets.ts",
     "sepolia:register": "./scripts/sepolia-register.sh",
+    "sepolia:metadata": "./scripts/sepolia-metadata.sh",
     "sepolia:deploy": "./scripts/sepolia-deploy.sh",
     "sepolia:verify": "./scripts/sepolia-verify.sh",
     "agent:test": "cd agent && yarn test",

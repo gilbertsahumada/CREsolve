@@ -11,6 +11,7 @@ Foundry project for CREsolver smart contracts.
 - `script/Deploy.s.sol`: generic deploy script (local or testnet via env vars).
 - `script/DeploySepolia.s.sol`: Sepolia flow with `scripts/sepolia-agents.json`.
 - `DEPLOYMENTS.md`: public deployment registry and address table by network.
+- `SEPOLIA_AGENTS.md`: public table of worker addresses and agent IDs.
 - `test/CREsolverMarket.t.sol`: market contract tests.
 - `test/CREReceiver.t.sol`: receiver contract tests.
 - `test/CREsolverMarketFork.t.sol`: Sepolia fork test against real ERC-8004 registries.
@@ -42,6 +43,9 @@ forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
 forge script script/DeploySepolia.s.sol --rpc-url $SEPOLIA_RPC --broadcast -vvvv
 
 # Or from repo root (loads contracts/.env automatically)
+yarn sepolia:register
+yarn sepolia:metadata
+yarn sepolia:verify --public-out sepolia-agents.public.json
 yarn sepolia:deploy
 ```
 

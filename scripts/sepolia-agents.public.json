@@ -1,0 +1,25 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "identityRegistry": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+  "reputationRegistry": "0x8004B663056A597Dffe9eCcC1965A193B7388713",
+  "deployer": "0x5ee75a1B1648C023e885E58bD3735Ae273f2cc52",
+  "generatedAt": "2026-02-20T13:11:23.726Z",
+  "agents": [
+    {
+      "name": "Alpha",
+      "address": "0x39dA71D28d9C33676f9B5f0d7e54c34B3B1BE77A",
+      "agentId": 1299
+    },
+    {
+      "name": "Beta",
+      "address": "0x6df71140DA55a8A587b7CA140E64622D76eA0aE6",
+      "agentId": 1300
+    },
+    {
+      "name": "Gamma",
+      "address": "0x937363c82BeA305369fD3e7475167b5363A2DA4D",
+      "agentId": 1301
+    }
+  ]
+}

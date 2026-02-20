@@ -209,7 +209,7 @@ describe("CREReceiver: simulated forwarder call", () => {
 
     const marketAbi = [
       "function createMarket(string question, uint256 duration) payable returns (uint256)",
-      "function joinMarket(uint256 marketId) payable",
+      "function joinMarket(uint256 marketId, uint256 agentId) payable",
       "function getMarket(uint256 marketId) view returns (tuple(string question, uint256 rewardPool, uint256 deadline, address creator, bool resolved))",
     ];
     const market = new ethers.Contract(cfg.contractAddress, marketAbi, deployer);
@@ -224,7 +224,7 @@ describe("CREReceiver: simulated forwarder call", () => {
     for (const w of cfg.workers) {
       const workerSigner = new ethers.Wallet(w.privateKey, provider);
       const workerContract = new ethers.Contract(cfg.contractAddress, marketAbi, workerSigner);
-      const joinTx = await workerContract.joinMarket(marketId, {
+      const joinTx = await workerContract.joinMarket(marketId, 0, {
         value: ethers.parseEther("0.01"),
       });
       await joinTx.wait();

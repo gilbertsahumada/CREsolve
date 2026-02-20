@@ -1,14 +1,11 @@
 import {
   EVMClient,
   type Runtime,
-  type WriteCreReportRequest,
 } from "@chainlink/cre-sdk";
 import {
   encodeCallMsg,
   prepareReportRequest,
-  hexToBytes,
   bytesToHex,
-  bytesToBigint,
 } from "@chainlink/cre-sdk";
 import {
   encodeFunctionData,
@@ -151,11 +148,6 @@ export function readMarketWorkers(
     functionName: "getMarketWorkers",
     data: bytesToHex(workersResult.data),
   }) as Address[];
-
-  // Build agent endpoint map (lowercase for matching)
-  const agentMap = new Map(
-    config.agents.map((a) => [a.name.toLowerCase(), a.endpoint]),
-  );
 
   // Read each worker's stake and reputation
   const workers: WorkerData[] = [];

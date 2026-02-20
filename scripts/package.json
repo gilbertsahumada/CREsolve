@@ -8,6 +8,7 @@
     "demo": "tsx demo-run.ts",
     "generate-wallets": "tsx generate-wallets.ts",
     "register-agents": "tsx register-agents.ts",
+    "verify-agents": "tsx verify-agents.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

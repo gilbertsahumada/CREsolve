@@ -22,6 +22,13 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         bool resolved;
     }
 
+    struct Reputation {
+        uint256 resQualitySum;
+        uint256 srcQualitySum;
+        uint256 analysisDepthSum;
+        uint256 count;
+    }
+
     // ─── ERC-8004 Registries (optional, address(0) = disabled) ────────
     IERC8004IdentityV1 public immutable identityRegistry;
     IERC8004Reputation public immutable reputationRegistry;
@@ -36,6 +43,7 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
 
     mapping(address => uint256) public balances;
     mapping(address => bool) public authorizedResolvers;
+    mapping(address => Reputation) public reputation;
 
     uint256 public minStake = 0.01 ether;
 
@@ -66,7 +74,6 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     error MarketAlreadyResolved(uint256 marketId);
     error NotMarketCreator(uint256 marketId, address caller);
     error NotAgentOwner(address caller, uint256 agentId);
-
     // ─── Constructor ───────────────────────────────────────────────────
     constructor(address _identityRegistry, address _reputationRegistry) Ownable(msg.sender) {
         identityRegistry = IERC8004IdentityV1(_identityRegistry);
@@ -192,24 +199,33 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         address[] calldata workers,
         uint8[] calldata dimScores
     ) internal {
-        if (address(reputationRegistry) == address(0)) return;
-
         for (uint256 i; i < workers.length; i++) {
+            uint256 baseIdx = i * 3;
+            uint8 resQ = dimScores[baseIdx];
+            uint8 srcQ = dimScores[baseIdx + 1];
+            uint8 depthQ = dimScores[baseIdx + 2];
+
+            Reputation storage rep = reputation[workers[i]];
+            rep.resQualitySum += resQ;
+            rep.srcQualitySum += srcQ;
+            rep.analysisDepthSum += depthQ;
+            rep.count += 1;
+
+            if (address(reputationRegistry) == address(0)) continue;
+
             uint256 agentId = workerAgentIds[marketId][workers[i]];
             if (agentId == 0) continue;
 
-            uint256 baseIdx = i * 3;
-
             reputationRegistry.giveFeedback(
-                agentId, int128(int256(uint256(dimScores[baseIdx]))), 0,
+                agentId, int128(int256(uint256(resQ))), 0,
                 "resolution_quality", "cresolver", "", "", bytes32(0)
             );
             reputationRegistry.giveFeedback(
-                agentId, int128(int256(uint256(dimScores[baseIdx + 1]))), 0,
+                agentId, int128(int256(uint256(srcQ))), 0,
                 "source_quality", "cresolver", "", "", bytes32(0)
             );
             reputationRegistry.giveFeedback(
-                agentId, int128(int256(uint256(dimScores[baseIdx + 2]))), 0,
+                agentId, int128(int256(uint256(depthQ))), 0,
                 "analysis_depth", "cresolver", "", "", bytes32(0)
             );
         }
@@ -265,6 +281,21 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     function isMarketActive(uint256 marketId) public view returns (bool) {
         Market storage m = markets[marketId];
         return m.deadline > 0 && !m.resolved && block.timestamp <= m.deadline;
+    }
+
+    function getReputation(address worker) external view returns (
+        uint256 resQuality,
+        uint256 srcQuality,
+        uint256 analysisDepth,
+        uint256 count
+    ) {
+        Reputation storage rep = reputation[worker];
+        count = rep.count;
+        if (count == 0) return (0, 0, 0, 0);
+
+        resQuality = rep.resQualitySum / count;
+        srcQuality = rep.srcQualitySum / count;
+        analysisDepth = rep.analysisDepthSum / count;
     }
 
     function getScoringCriteria() external pure returns (string[8] memory names, uint256[8] memory weights) {

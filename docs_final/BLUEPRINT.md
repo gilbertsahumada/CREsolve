@@ -207,8 +207,11 @@ incluyendo la integración opcional con ERC-8004 IdentityRegistry y ReputationRe
        │                   │                   │                   │
 ```
 
-- **ERC-8004 Feedback**: Si `reputationRegistry != address(0)` y el worker tiene `agentId > 0`, se publica `giveFeedback(agentId, avgScore, 0, "resolution", "cresolver", ...)` al ReputationRegistry
-- El `avgScore` es el promedio de las 3 dimensiones: `(resQuality + srcQuality + analysisDepth) / 3`
+- **ERC-8004 Feedback**: Si `reputationRegistry != address(0)` y el worker tiene `agentId > 0`, se publican **3** `giveFeedback()` por worker:
+  - `resolution_quality`
+  - `source_quality`
+  - `analysis_depth`
+- Cada llamada publica el score de esa dimensión (0-100), no un promedio único.
 - La reputación interna (`getReputation()`) sigue siendo la fuente rápida para el workflow; ERC-8004 es la reputación canónica externa
 
 ### Fase 5: Withdraw

@@ -168,9 +168,10 @@ contract CREsolverMarketTest is Test {
     }
 
     function test_resolveMarket_publishes_reputation() public {
-        // When reputationRegistry is address(0), _updateReputation is a no-op.
-        // Reputation publishing to ERC-8004 is tested in test_resolveMarket_publishes_erc8004_feedback.
-        // Here we verify resolveMarket succeeds without an external registry.
+        // Reputation publishing to ERC-8004 is tested in
+        // test_resolveMarket_publishes_erc8004_feedback.
+        // Here we verify internal reputation averages are updated even when
+        // external registry is disabled.
         uint256 id = _setupMarketWith2Workers();
 
         address[] memory workers = new address[](2);
@@ -193,6 +194,18 @@ contract CREsolverMarketTest is Test {
         assertTrue(m.resolved);
         assertEq(market.balances(worker1), 0.5 ether + 0.05 ether);
         assertEq(market.balances(worker2), 0.5 ether + 0.05 ether);
+
+        (uint256 w1ResQ, uint256 w1SrcQ, uint256 w1Depth, uint256 w1Count) = market.getReputation(worker1);
+        assertEq(w1ResQ, 80);
+        assertEq(w1SrcQ, 70);
+        assertEq(w1Depth, 60);
+        assertEq(w1Count, 1);
+
+        (uint256 w2ResQ, uint256 w2SrcQ, uint256 w2Depth, uint256 w2Count) = market.getReputation(worker2);
+        assertEq(w2ResQ, 90);
+        assertEq(w2SrcQ, 85);
+        assertEq(w2Depth, 75);
+        assertEq(w2Count, 1);
     }
 
     function test_resolveMarket_reverts_unauthorized() public {
@@ -380,9 +393,7 @@ contract CREsolverMarketTest is Test {
     // ─── reputation accumulates ────────────────────────────────────────
 
     function test_reputation_accumulates() public {
-        // When reputationRegistry is address(0), _updateReputation is a no-op.
-        // This test verifies that workers can participate in multiple markets
-        // and rewards are distributed correctly across them.
+        // Verify workers accumulate internal reputation across markets.
 
         // Market 1
         uint256 id1 = _setupMarketWith2Workers();
@@ -432,6 +443,18 @@ contract CREsolverMarketTest is Test {
         // Both markets resolved
         assertTrue(market.getMarket(id1).resolved);
         assertTrue(market.getMarket(id2).resolved);
+
+        (uint256 w1ResQ, uint256 w1SrcQ, uint256 w1Depth, uint256 w1Count) = market.getReputation(worker1);
+        assertEq(w1ResQ, 90); // (80 + 100) / 2
+        assertEq(w1SrcQ, 70); // (60 + 80) / 2
+        assertEq(w1Depth, 50); // (40 + 60) / 2
+        assertEq(w1Count, 2);
+
+        (uint256 w2ResQ, uint256 w2SrcQ, uint256 w2Depth, uint256 w2Count) = market.getReputation(worker2);
+        assertEq(w2ResQ, 80); // (70 + 90) / 2
+        assertEq(w2SrcQ, 60); // (50 + 70) / 2
+        assertEq(w2Depth, 40); // (30 + 50) / 2
+        assertEq(w2Count, 2);
     }
 
     // ─── ERC-8004 Identity Registry ─────────────────────────────────

@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
 import {CREsolverMarket} from "../src/CREsolverMarket.sol";
-import {CREReceiver} from "../src/CREReceiver.sol";
 
 /**
  * @title DeploySepolia
@@ -22,12 +21,16 @@ import {CREReceiver} from "../src/CREReceiver.sol";
  */
 contract DeploySepoliaScript is Script {
     function run() external {
-        // Sepolia ERC-8004 addresses (overridable via env)
+        // Sepolia/Testnets ERC-8004 addresses (overridable via env)
         address IDENTITY_REGISTRY = vm.envOr("ERC8004_IDENTITY", 0x8004A818BFB912233c491871b3d84c89A494BD9e);
         address REPUTATION_REGISTRY = vm.envOr("ERC8004_REPUTATION", 0x8004B663056A597Dffe9eCcC1965A193B7388713);
 
         // ── Read sepolia-agents.json ─────────────────────────────────────
         string memory json = vm.readFile("../scripts/sepolia-agents.json");
+
+        if(bytes(json).length == 0) {
+            revert("sepolia-agents.json not found or empty. Please run `yarn generate-wallets` and `yarn register-agents` first.");
+        }
 
         // Parse 3 agents
         address[3] memory workerAddrs;

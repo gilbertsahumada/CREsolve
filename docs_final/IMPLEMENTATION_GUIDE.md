@@ -217,7 +217,7 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
 **ERC-8004 Integration**:
 - Both registries are **optional** (`address(0)` = disabled) — E2E and demo run without them
 - `identityRegistry.isAuthorizedOrOwner()` checks agent ownership on join
-- `reputationRegistry.giveFeedback()` publishes avg score across 3 dims after resolution
+- `reputationRegistry.giveFeedback()` publishes 3 feedback entries per worker (`resolution_quality`, `source_quality`, `analysis_depth`)
 - Sepolia addresses: Identity `0x8004A818BFB912233c491871b3d84c89A494BD9e`, Reputation `0x8004B663056A597Dffe9eCcC1965A193B7388713`
 
 **Validations in resolveMarket**:
@@ -408,7 +408,7 @@ All `joinMarket` calls use `agentId=0`: `market.joinMarket{value: 0.05 ether}(ma
 | `test_resolveMarket_happy_path` | 70/30 weight split → correct rewards + stakes |
 | `test_resolveMarket_returns_stakes` | 50/50 split → stakes returned |
 | `test_resolveMarket_publishes_reputation` | 3 dimensions stored correctly |
-| `test_resolveMarket_publishes_erc8004_feedback` | giveFeedback() called with correct avg scores |
+| `test_resolveMarket_publishes_erc8004_feedback` | giveFeedback() called with correct per-dimension scores |
 | `test_resolveMarket_reverts_unauthorized` | Unauthorized caller |
 | `test_resolveMarket_reverts_already_resolved` | AlreadyResolved error |
 | `test_resolveMarket_reverts_too_many_workers` | TooManyWorkers (>10) |

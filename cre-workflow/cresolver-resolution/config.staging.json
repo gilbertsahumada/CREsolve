@@ -1,0 +1,11 @@
+{
+  "agents": [],
+  "evms": [
+    {
+      "chain_selector": "evm",
+      "market_address": "0x1234567890abcdef1234567890abcdef12345678",
+      "receiver_address": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdef",
+      "gas_limit": 500000
+    }
+  ]
+}

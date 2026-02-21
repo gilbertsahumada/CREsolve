@@ -90,7 +90,14 @@ function initWorkflow(config: Config) {
 
     runtime.log(`EVM Log Trigger: ResolutionRequested for market ${marketId}`);
     resolveMarket(runtime, marketId);
-    return {};
+    return [
+      handler(
+        evmClient.logTrigger({
+          addresses: [config.evms[0].market_address as Address],
+        }),
+        onLogTrigger,
+      )
+    ];
   };
 
   // ── Trigger 2: HTTP Trigger ─────────────────────────────────────────────
@@ -108,13 +115,40 @@ function initWorkflow(config: Config) {
 
     runtime.log(`HTTP Trigger: Resolution requested for market ${marketId}`);
     resolveMarket(runtime, marketId);
-    return {};
+    return [
+      handler(
+        evmClient.logTrigger({
+          addresses: [config.evms[0].market_address as Address],
+        }),
+        onLogTrigger,
+      )
+    ];
   };
 
   return [
     handler(evmLogTrigger, handleEvmLogTrigger),
     handler(httpTrigger, handleHttpTrigger),
   ];
+}
+
+const onLogTrigger = (runtime: Runtime<Config>, log: EVMLog) => {
+  runtime.log('EVM Log Trigger fired')
+  const topics = log.topics;
+
+  if (topics.length < 2) {
+    runtime.log('Log payload does not contain enough topics');
+    throw new Error(`Log payload does not contain enough topics ${topics.length}`);
+  }
+
+  // Extract marketId from the first indexed topic (topic1)
+  const marketIdTopic = topics[1];
+  const marketId = marketIdTopic
+    ? Number(bytesToBigint(marketIdTopic))
+    : 0;
+
+  runtime.log(`EVM Log Trigger: ResolutionRequested for market ${marketId}`);
+  resolveMarket(runtime, marketId);
+  return {};
 }
 
 // ─── Entry point ─────────────────────────────────────────────────────────────

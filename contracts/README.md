@@ -9,7 +9,7 @@ Foundry project for CREsolver smart contracts.
 - `src/interfaces/ReceiverTemplate.sol`: forwarder/auth/metadata guard for `onReport`.
 - `src/interfaces/erc8004/*`: optional ERC-8004 identity/reputation interfaces.
 - `script/Deploy.s.sol`: generic deploy script (local or testnet via env vars).
-- `script/DeploySepolia.s.sol`: Sepolia flow with `scripts/sepolia-agents.json`.
+- `script/DeploySepolia.s.sol`: Sepolia flow with `scripts/sepolia-agents.json` (optionally deploys `CREReceiver` if `KEYSTONE_FORWARDER` is set).
 - `DEPLOYMENTS.md`: public deployment registry and address table by network.
 - `SEPOLIA_AGENTS.md`: public table of worker addresses and agent IDs.
 - `test/CREsolverMarket.t.sol`: market contract tests.

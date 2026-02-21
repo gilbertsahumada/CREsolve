@@ -451,7 +451,7 @@ All `joinMarket` calls use `agentId=0`: `market.joinMarket{value: 0.05 ether}(ma
 ```typescript
 const ConfigSchema = z.object({
   evms: z.array(z.object({
-    chain_selector: z.number(),
+    chain_selector: z.union([z.number().int().nonnegative(), z.string().regex(/^\\d+$/)]),
     market_address: z.string(),
     receiver_address: z.string(),
     gas_limit: z.number(),
@@ -609,26 +609,25 @@ const weight = Math.round(qualityScore * correctnessMult * repFactor);
 
 **project.yaml**:
 ```yaml
-project_name: cresolver
-language: typescript
-targets:
-  local-simulation:
-    rpc_urls:
-      - chain_id: 31337
-        url: "http://127.0.0.1:8547"
+local-simulation:
+  rpcs:
+    - chain-name: anvil-devnet
+      url: "http://127.0.0.1:8547"
+  experimental-chains:
+    - chain-selector: 31337
+      rpc-url: "http://127.0.0.1:8547"
+      forwarder: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 ```
 
 **workflow.yaml**:
 ```yaml
-name: cresolver-resolution
-description: "CRE workflow for resolving prediction markets using multi-agent consensus"
-artifact:
-  entry_point: main.ts
-  build_dir: dist
-config:
-  path: config.json
-secrets:
-  path: ../secrets.yaml
+local-simulation:
+  user-workflow:
+    workflow-name: "cresolver-resolution-local"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.json"
+    secrets-path: "../secrets.yaml"
 ```
 
 ---

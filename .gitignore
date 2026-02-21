@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# CRE Example
+cre-example/
+
 # Build output
 dist/
 *.tsbuildinfo
@@ -27,6 +30,8 @@ e2e/demo-config.json
 # CRE
 *.wasm
 cre-workflow/tmp/
+cre-workflow/cresolver-resolution/tmp.js
+cre-workflow/cresolver-resolution/.cre_build_tmp.js
 
 # IDE
 .vscode/

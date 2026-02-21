@@ -3,11 +3,14 @@ pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
 import {CREsolverMarket} from "../src/CREsolverMarket.sol";
+import {CREReceiver} from "../src/CREReceiver.sol";
 
 /**
  * @title DeploySepolia
- * @notice Deploys CREsolverMarket on Sepolia with ERC-8004 registries,
- *         creates a test market, and has workers join with their agentIds.
+ * @notice Deploys CREsolverMarket on Sepolia with ERC-8004 registries.
+ *         If KEYSTONE_FORWARDER is provided, it also deploys CREReceiver
+ *         and authorizes it as resolver.
+ *         Then creates a test market and has workers join with their agentIds.
  *
  * Prerequisites:
  *   1. Run `yarn sepolia:wallets` to create worker wallets
@@ -24,6 +27,7 @@ contract DeploySepoliaScript is Script {
         // Sepolia/Testnets ERC-8004 addresses (overridable via env)
         address IDENTITY_REGISTRY = vm.envOr("ERC8004_IDENTITY", 0x8004A818BFB912233c491871b3d84c89A494BD9e);
         address REPUTATION_REGISTRY = vm.envOr("ERC8004_REPUTATION", 0x8004B663056A597Dffe9eCcC1965A193B7388713);
+        address KEYSTONE_FORWARDER = vm.envOr("KEYSTONE_FORWARDER", address(0));
 
         // ── Read sepolia-agents.json ─────────────────────────────────────
         string memory json = vm.readFile("../scripts/sepolia-agents.json");
@@ -70,11 +74,25 @@ contract DeploySepoliaScript is Script {
         CREsolverMarket market = new CREsolverMarket(IDENTITY_REGISTRY, REPUTATION_REGISTRY);
         console.log("\n  CREsolverMarket: %s", address(market));
 
-        // 2. Authorize deployer as resolver (for direct resolution demo)
+        // 2. Optional CREReceiver deployment for CRE writeReport path
+        address receiverAddress = address(0);
+        if (KEYSTONE_FORWARDER != address(0)) {
+            CREReceiver receiver = new CREReceiver(address(market), KEYSTONE_FORWARDER);
+            receiverAddress = address(receiver);
+            console.log("  CREReceiver: %s", receiverAddress);
+            console.log("  Forwarder: %s", KEYSTONE_FORWARDER);
+
+            market.setAuthorizedResolver(receiverAddress, true);
+            console.log("  CREReceiver authorized as resolver");
+        } else {
+            console.log("  KEYSTONE_FORWARDER not set: skipping CREReceiver deploy");
+        }
+
+        // 3. Authorize deployer as resolver (for direct resolution demo)
         market.setAuthorizedResolver(deployer, true);
         console.log("  Deployer authorized as resolver");
 
-        // 3. Create a test market
+        // 4. Create a test market
         uint256 marketId = market.createMarket{value: 0.01 ether}(
             "Will bitcoin reach 200k by end of 2026?",
             7 days
@@ -103,6 +121,7 @@ contract DeploySepoliaScript is Script {
         console.log("  Deployment complete!");
         console.log("========================================");
         console.log("  CREsolverMarket: %s", address(market));
+        console.log("  CREReceiver: %s", receiverAddress);
         console.log("  Market ID: %d", marketId);
         console.log("  Workers: 3 (with ERC-8004 identity)");
         console.log("  Network: Sepolia");

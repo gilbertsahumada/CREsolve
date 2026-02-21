@@ -132,7 +132,7 @@ For local simulation outside Docker:
 
 ```bash
 # 1. Start a local Anvil node
-anvil
+anvil --port 8547
 
 # 2. Start 3 agents (in separate terminals)
 cd agent
@@ -140,13 +140,54 @@ AGENT_PORT=3001 AGENT_NAME=Alpha yarn start
 AGENT_PORT=3002 AGENT_NAME=Beta  yarn start
 AGENT_PORT=3003 AGENT_NAME=Gamma yarn start
 
-# 3. Deploy contracts and create demo markets
-yarn local:setup
+# 3. Deploy contracts + receiver and create demo markets
+yarn local:setup -- --receiver
+
+# 4. Copy addresses from scripts/demo-config.json into cre-workflow/cresolver-resolution/config.json
+#    - evms[0].market_address = contractAddress
+#    - evms[0].receiver_address = receiverAddress
+#    - agents[*].endpoint = your running agent ports
+
+# 5. Run CRE simulation from project settings root
+cd cre-workflow
+cre workflow simulate ./cresolver-resolution --target=local-simulation
 ```
 
 `setup-demo.ts` is the shared bootstrap entrypoint for both local and E2E profiles.
 It deploys `CREsolverMarket`, optionally deploys `CREReceiver`, creates markets, funds workers, and writes the target config file.
 Resolution execution is validated through the CREReceiver path in E2E tests, and production workflow logic lives in `cre-workflow/cresolver-resolution`.
+
+If the simulation command fails before execution with auth/network errors, run:
+
+```bash
+cre update
+cre login
+```
+
+## Sepolia Workflow (No Anvil)
+
+If you do not want to use Anvil, run the workflow against Sepolia:
+
+```bash
+# 1) Make sure CREReceiver is deployed on Sepolia and authorized in CREsolverMarket.
+#    (You need market + receiver addresses)
+
+# 2) Start local agents (or point to your own agent URLs and ports)
+cd agent
+AGENT_PORT=3101 AGENT_NAME=Alpha yarn start
+AGENT_PORT=3102 AGENT_NAME=Beta  yarn start
+AGENT_PORT=3103 AGENT_NAME=Gamma yarn start
+cd ..
+
+# 3) Update cre-workflow/cresolver-resolution/config.json
+#    - evms[0].chain_selector = "16015286601757825753" (Sepolia)
+#    - evms[0].market_address = 0xYOUR_MARKET_ADDRESS
+#    - evms[0].receiver_address = 0xYOUR_RECEIVER_ADDRESS
+#    - agents[*].endpoint = your reachable agent URLs
+
+# 4) Simulate against Sepolia target
+yarn workflow:simulate:sepolia
+```
 
 ### Sepolia Setup
 
@@ -260,7 +301,7 @@ cresolver/
 | `AGENT_NAME` | `"Worker"` | Agent display name |
 | `LLM_API_KEY` | `""` | OpenAI API key (empty = mock mode) |
 | `LLM_MODEL` | `"gpt-4o-mini"` | LLM model for investigation |
-| `RPC_URL` | `http://127.0.0.1:8545` | Ethereum JSON-RPC endpoint |
+| `RPC_URL` | `http://127.0.0.1:8547` | Ethereum JSON-RPC endpoint |
 | `KEYSTONE_FORWARDER` | `address(0)` | KeystoneForwarder contract (deploy script) |
 | `DIRECT_RESOLVER` | `address(0)` | Direct resolver signer (deploy script) |
 

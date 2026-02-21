@@ -9,6 +9,7 @@
     "e2e:test": "cd e2e && npx vitest run --config vitest.e2e.config.ts",
     "e2e:down": "docker compose -f docker-compose.e2e.yml down",
     "local:setup": "cd scripts && npx tsx setup-demo.ts --profile local",
+    "workflow:simulate:sepolia": "cd cre-workflow && cre workflow simulate ./cresolver-resolution --target=staging-settings --env .env",
     "sepolia:wallets": "cd scripts && npx tsx generate-wallets.ts",
     "sepolia:sync": "./scripts/sepolia-sync.sh",
     "sepolia:normalize": "./scripts/sepolia-normalize.sh",

@@ -130,7 +130,7 @@ function parseArgs(argv: string[]): SetupOptions {
           requestResolutions: true,
         }
       : {
-          rpcUrl: process.env.RPC_URL || "http://127.0.0.1:8545",
+          rpcUrl: process.env.RPC_URL || "http://127.0.0.1:8547",
           agentPorts: [3001, 3002, 3003],
           outputPath: "demo-config.json",
           waitForServices: false,

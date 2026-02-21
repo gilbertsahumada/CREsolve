@@ -1,12 +1,24 @@
-name: cresolver-resolution
-description: "CRE workflow for resolving prediction markets using multi-agent consensus"
+local-simulation:
+  user-workflow:
+    workflow-name: "cresolver-resolution-local"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.json"
+    secrets-path: "../secrets.yaml"
 
-artifact:
-  entry_point: main.ts
-  build_dir: dist
+staging-settings:
+  user-workflow:
+    workflow-name: "cresolver-resolution-staging"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.json"
+    secrets-path: "../secrets.yaml"
 
-config:
-  path: config.json
-
-secrets:
-  path: ../secrets.yaml
+# Backward-compatible alias for previous target naming used in this repo.
+staging:
+  user-workflow:
+    workflow-name: "cresolver-resolution-staging"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.json"
+    secrets-path: "../secrets.yaml"

@@ -1,15 +1,26 @@
-project_name: cresolver
-language: typescript
+# CRE project settings (CLI v1.x):
+# targets are declared at root level.
 
-targets:
-  local-simulation:
-    rpc_urls:
-      - chain_id: 31337
-        url: "http://127.0.0.1:8547"
-    description: "Local Anvil devnet for simulation and testing"
+local-simulation:
+  rpcs:
+    - chain-name: anvil-devnet
+      url: "http://127.0.0.1:8547"
+  experimental-chains:
+    - chain-selector: 31337
+      rpc-url: "http://127.0.0.1:8547"
+      # setup-demo.ts uses the default Anvil deployer as forwarder in local/e2e.
+      forwarder: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  description: "Local Anvil devnet for simulation and testing"
 
-  staging:
-    rpc_urls:
-      - chain_id: 11155111
-        url: "${SEPOLIA_RPC_URL}"
-    description: "Sepolia testnet staging environment"
+staging-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: "${SEPOLIA_RPC_URL}"
+  description: "Sepolia testnet staging environment"
+
+# Backward-compatible alias for previous target naming used in this repo.
+staging:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: "${SEPOLIA_RPC_URL}"
+  description: "Sepolia testnet staging environment"

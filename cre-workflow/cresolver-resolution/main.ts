@@ -22,6 +22,10 @@ const RESOLUTION_REQUESTED_TOPIC = keccak256(
   toBytes("ResolutionRequested(uint256,string)"),
 );
 
+function parseChainSelector(value: Config["evms"][number]["chain_selector"]): bigint {
+  return BigInt(typeof value === "string" ? value : value);
+}
+
 // ─── Core resolution logic (shared by both triggers) ─────────────────────────
 
 function resolveMarket(
@@ -29,7 +33,7 @@ function resolveMarket(
   marketId: number,
 ): void {
   const evm = runtime.config.evms[0];
-  const evmClient = new EVMClient(BigInt(evm.chain_selector));
+  const evmClient = new EVMClient(parseChainSelector(evm.chain_selector));
 
   runtime.log(`Starting resolution for market ${marketId}`);
 
@@ -61,7 +65,8 @@ function resolveMarket(
 
 function initWorkflow(config: Config) {
   const evm = config.evms[0];
-  const evmClient = new EVMClient(BigInt(evm.chain_selector));
+  const chainSelector = parseChainSelector(evm.chain_selector);
+  const evmClient = new EVMClient(chainSelector);
   const marketAddr = evm.market_address as Address;
 
   // ── Trigger 1: EVM Log Trigger ──────────────────────────────────────────

@@ -1,5 +1,11 @@
-import type { ResolveResponse } from "../../../shared/types";
 import { config } from "../config.js";
+
+interface ResolveResponse {
+  determination: boolean;
+  confidence: number;
+  evidence: string;
+  sources: string[];
+}
 
 // ─── Response cache (critical for CRE consensus: all DON nodes get identical responses) ─
 

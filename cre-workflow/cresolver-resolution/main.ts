@@ -73,11 +73,11 @@ function resolveMarket(
 
 // ─── Trigger handlers ─────────────────────────────────────────────────────────
 
-const onLogTrigger = (runtime: Runtime<Config>, log: EVMLog) => {
+const onLogTrigger = (runtime: Runtime<Config>, log: EVMLog): string => {
   const marketId = marketIdFromLog(log);
   runtime.log(`EVM Log Trigger: ResolutionRequested for market ${marketId}`);
-  resolveMarket(runtime, marketId);
-  return {};
+  //resolveMarket(runtime, marketId);
+  return "Only logging for now, resolution logic is commented out for testing";
 };
 
 const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload) => {
@@ -112,18 +112,18 @@ function initWorkflow(config: Config) {
   // Listens for ResolutionRequested(uint256,string) events on the market contract
   const evmLogTrigger = evmClient.logTrigger({
     addresses: [marketAddr],
-    topics: [
-      { values: [RESOLUTION_REQUESTED_TOPIC] }, // topic0: event signature
-    ],
+    //topics: [
+    //  { values: [RESOLUTION_REQUESTED_TOPIC] }, // topic0: event signature
+    //],
   });
 
   // ── Trigger 2: HTTP Trigger ─────────────────────────────────────────────
   // Accepts external requests to trigger resolution manually
-  const httpTrigger = new HTTPCapability().trigger({});
+  //const httpTrigger = new HTTPCapability().trigger({});
 
   return [
     handler(evmLogTrigger, onLogTrigger),
-    handler(httpTrigger, onHttpTrigger),
+    //handler(httpTrigger, onHttpTrigger),
   ];
 }
 

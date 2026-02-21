@@ -15,12 +15,5 @@ local-simulation:
 staging-settings:
   rpcs:
     - chain-name: ethereum-testnet-sepolia
-      url: "${SEPOLIA_RPC_URL}"
-  description: "Sepolia testnet staging environment"
-
-# Backward-compatible alias for previous target naming used in this repo.
-staging:
-  rpcs:
-    - chain-name: ethereum-testnet-sepolia
-      url: "${SEPOLIA_RPC_URL}"
+      url: "https://ethereum-sepolia-rpc.publicnode.com"
   description: "Sepolia testnet staging environment"

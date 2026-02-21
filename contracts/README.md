@@ -46,8 +46,6 @@ forge script script/DeploySepolia.s.sol --rpc-url $SEPOLIA_RPC --broadcast -vvvv
 yarn sepolia:sync
 yarn sepolia:normalize
 yarn sepolia:audit --min-eth 0.01
-yarn sepolia:register
-yarn sepolia:metadata
 yarn sepolia:verify --public-out sepolia-agents.public.json
 yarn sepolia:deploy
 ```

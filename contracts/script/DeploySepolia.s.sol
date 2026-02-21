@@ -10,9 +10,9 @@ import {CREsolverMarket} from "../src/CREsolverMarket.sol";
  *         creates a test market, and has workers join with their agentIds.
  *
  * Prerequisites:
- *   1. Run `yarn generate-wallets` to create worker wallets
- *   2. Run `DEPLOYER_KEY=0x... SEPOLIA_RPC=... yarn register-agents` to register on ERC-8004
- *   3. Ensure workers are funded (register-agents does this)
+ *   1. Run `yarn sepolia:wallets` to create worker wallets
+ *   2. Run `yarn sepolia:sync` to register/normalize ERC-8004 agents
+ *   3. Ensure workers are funded (sepolia:sync can top-up)
  *
  * Usage:
  *   cd contracts
@@ -29,7 +29,7 @@ contract DeploySepoliaScript is Script {
         string memory json = vm.readFile("../scripts/sepolia-agents.json");
 
         if(bytes(json).length == 0) {
-            revert("sepolia-agents.json not found or empty. Please run `yarn generate-wallets` and `yarn register-agents` first.");
+            revert("sepolia-agents.json not found or empty. Please run `yarn sepolia:wallets` and `yarn sepolia:sync` first.");
         }
 
         // Parse 3 agents

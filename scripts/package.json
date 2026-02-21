@@ -9,7 +9,6 @@
     "generate-wallets": "tsx generate-wallets.ts",
     "sync-agents": "tsx sync-agents.ts",
     "audit-agents": "tsx audit-agents-onchain.ts",
-    "register-agents": "tsx register-agents.ts",
     "verify-agents": "tsx verify-agents.ts",
     "typecheck": "tsc --noEmit"
   },

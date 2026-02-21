@@ -14,8 +14,6 @@
     "sepolia:sync": "./scripts/sepolia-sync.sh",
     "sepolia:normalize": "./scripts/sepolia-normalize.sh",
     "sepolia:audit": "./scripts/sepolia-audit.sh",
-    "sepolia:register": "./scripts/sepolia-register.sh",
-    "sepolia:metadata": "./scripts/sepolia-metadata.sh",
     "sepolia:deploy": "./scripts/sepolia-deploy.sh",
     "sepolia:verify": "./scripts/sepolia-verify.sh",
     "agent:test": "cd agent && yarn test",

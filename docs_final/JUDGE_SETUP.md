@@ -55,7 +55,6 @@ yarn sepolia:verify --public-out sepolia-agents.public.json
 Notas:
 - `scripts/sepolia-agents.json` contiene private keys (archivo privado).
 - `sepolia-agents.public.json` deja solo `name`, `address`, `agentId`.
-- `yarn sepolia:register` y `yarn sepolia:metadata` siguen funcionando como alias legacy.
 
 ## 3) Verificaciones mínimas esperadas
 

@@ -43,7 +43,7 @@
 │                                                                             │
 │  D. Scripts (TypeScript) ✅ COMPLETADO                                     │
 │     ├── setup-demo.ts      — Deploy + setup + register workers             │
-│     └── demo-run.ts        — Full loop con 3 mercados                      │
+│     └── Sync/Audit scripts — Registro y verificación on-chain              │
 │                                                                             │
 │  E. E2E Sandbox (Docker Compose) ✅ COMPLETADO                             │
 │     ├── docker-compose.e2e.yml — Anvil + 3 agents                          │
@@ -593,7 +593,7 @@ const report = runtime.report(prepareReportRequest(encodedPayload)).result();
 evmClient.writeReport(runtime, { receiver: receiverAddr, report, gasConfig: { gasLimit } }).result();
 ```
 
-**Modo local (E2E)**: El `workflow-runner.ts` simula el DON llamando `resolveMarket()` directamente.
+**Modo local (E2E)**: Se valida el path `CREReceiver.onReport(...)` con reports simulados.
 
 ---
 
@@ -691,7 +691,7 @@ podrían producir resultados distintos en cada nodo, rompiendo el consenso.
 7. Genera demo-config.json con addresses y config
 ```
 
-### 7.2 demo-run.ts
+### 7.2 Resolución vía CREReceiver (E2E)
 
 ```
 1. Lee demo-config.json
@@ -703,7 +703,7 @@ podrían producir resultados distintos en cada nodo, rompiendo el consenso.
    d. Query a cada worker: POST /a2a/challenge
    e. Evalúa quality scores
    f. Computa weighted majority + blinded weights
-   g. Llama resolveMarket() on-chain
+   g. Encodea report y llama CREReceiver.onReport(metadata, report)
 4. Muestra resultados y reputación actualizada
 ```
 
@@ -846,7 +846,7 @@ Mock response: determination=true, confidence=0.72
 │  SCRIPTS (cresolver/scripts/, TypeScript) ✅                               │
 │  ═══════════════════════════════════════════                                │
 │  ✅ setup-demo.ts — Deploy + fund + create markets + join workers          │
-│  ✅ demo-run.ts — Full loop de resolución                                  │
+│  ✅ Resolución local via CREReceiver en e2e.test.ts                        │
 │                                                                             │
 │  E2E SANDBOX (cresolver/e2e/ + Docker Compose) ✅                          │
 │  ═════════════════════════════════════════════════                          │
@@ -885,7 +885,7 @@ Mock response: determination=true, confidence=0.72
 | 8 | Worker Agent: mock + LLM modes + caching | ✅ |
 | 9 | Worker Agent: tests | ✅ |
 | 10 | CRE Workflow: types, agents, evm, evaluate, main | ✅ |
-| 11 | Scripts: setup-demo.ts, demo-run.ts | ✅ |
+| 11 | Scripts: setup-demo.ts + sync/audit | ✅ |
 
 ### Fase 3: Integración E2E — ✅ COMPLETADA
 

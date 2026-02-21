@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "setup": "tsx setup-demo.ts",
-    "demo": "tsx demo-run.ts",
     "generate-wallets": "tsx generate-wallets.ts",
     "sync-agents": "tsx sync-agents.ts",
     "audit-agents": "tsx audit-agents-onchain.ts",

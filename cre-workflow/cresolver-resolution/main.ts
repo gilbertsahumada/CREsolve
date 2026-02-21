@@ -1,14 +1,14 @@
 import {
   EVMClient,
   HTTPCapability,
+  bytesToBigint,
   handler,
-  type Runtime,
+  Runner,
   type EVMLog,
   type HTTPPayload,
+  type Runtime,
 } from "@chainlink/cre-sdk";
-import { Runner } from "@chainlink/cre-sdk";
-import { hexToBytes, bytesToBigint, bytesToHex } from "@chainlink/cre-sdk";
-import { decodeAbiParameters, keccak256, toBytes, type Address } from "viem";
+import { keccak256, toBytes, type Address } from "viem";
 
 import { ConfigSchema, type Config } from "./types.js";
 import { readMarketWorkers, readMarketQuestion, submitResolution } from "./evm.js";
@@ -24,6 +24,16 @@ const RESOLUTION_REQUESTED_TOPIC = keccak256(
 
 function parseChainSelector(value: Config["evms"][number]["chain_selector"]): bigint {
   return BigInt(typeof value === "string" ? value : value);
+}
+
+function marketIdFromLog(log: EVMLog): number {
+  if (log.topics.length < 2 || !log.topics[1]) {
+    throw new Error(
+      `ResolutionRequested log missing indexed marketId topic (topics=${log.topics.length})`,
+    );
+  }
+  const marketIdTopic = log.topics[1];
+  return Number(bytesToBigint(marketIdTopic));
 }
 
 // ─── Core resolution logic (shared by both triggers) ─────────────────────────
@@ -61,7 +71,36 @@ function resolveMarket(
   );
 }
 
-// ─── Workflow initialization ─────────────────────────────────────────────────
+// ─── Trigger handlers ─────────────────────────────────────────────────────────
+
+const onLogTrigger = (runtime: Runtime<Config>, log: EVMLog) => {
+  const marketId = marketIdFromLog(log);
+  runtime.log(`EVM Log Trigger: ResolutionRequested for market ${marketId}`);
+  resolveMarket(runtime, marketId);
+  return {};
+};
+
+const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload) => {
+  const inputStr = new TextDecoder().decode(payload.input);
+  let input: { market_id?: number };
+  try {
+    input = JSON.parse(inputStr) as { market_id?: number };
+  } catch {
+    throw new Error("HTTP payload must be valid JSON");
+  }
+  const rawMarketId = input.market_id;
+
+  if (!Number.isInteger(rawMarketId) || (rawMarketId as number) < 0) {
+    throw new Error("HTTP payload must include integer field market_id");
+  }
+
+  const marketId = rawMarketId as number;
+  runtime.log(`HTTP Trigger: Resolution requested for market ${marketId}`);
+  resolveMarket(runtime, marketId);
+  return {};
+};
+
+// ─── Workflow wiring ──────────────────────────────────────────────────────────
 
 function initWorkflow(config: Config) {
   const evm = config.evms[0];
@@ -78,77 +117,14 @@ function initWorkflow(config: Config) {
     ],
   });
 
-  const handleEvmLogTrigger = (
-    runtime: Runtime<Config>,
-    log: EVMLog,
-  ) => {
-    // Extract marketId from the first indexed topic (topic1)
-    const marketIdTopic = log.topics[1];
-    const marketId = marketIdTopic
-      ? Number(bytesToBigint(marketIdTopic))
-      : 0;
-
-    runtime.log(`EVM Log Trigger: ResolutionRequested for market ${marketId}`);
-    resolveMarket(runtime, marketId);
-    return [
-      handler(
-        evmClient.logTrigger({
-          addresses: [config.evms[0].market_address as Address],
-        }),
-        onLogTrigger,
-      )
-    ];
-  };
-
   // ── Trigger 2: HTTP Trigger ─────────────────────────────────────────────
-  // Accepts external POST requests to trigger resolution manually
+  // Accepts external requests to trigger resolution manually
   const httpTrigger = new HTTPCapability().trigger({});
 
-  const handleHttpTrigger = (
-    runtime: Runtime<Config>,
-    payload: HTTPPayload,
-  ) => {
-    // Parse the JSON input from the HTTP trigger payload
-    const inputStr = new TextDecoder().decode(payload.input);
-    const input = JSON.parse(inputStr) as { market_id: number };
-    const marketId = input.market_id;
-
-    runtime.log(`HTTP Trigger: Resolution requested for market ${marketId}`);
-    resolveMarket(runtime, marketId);
-    return [
-      handler(
-        evmClient.logTrigger({
-          addresses: [config.evms[0].market_address as Address],
-        }),
-        onLogTrigger,
-      )
-    ];
-  };
-
   return [
-    handler(evmLogTrigger, handleEvmLogTrigger),
-    handler(httpTrigger, handleHttpTrigger),
+    handler(evmLogTrigger, onLogTrigger),
+    handler(httpTrigger, onHttpTrigger),
   ];
-}
-
-const onLogTrigger = (runtime: Runtime<Config>, log: EVMLog) => {
-  runtime.log('EVM Log Trigger fired')
-  const topics = log.topics;
-
-  if (topics.length < 2) {
-    runtime.log('Log payload does not contain enough topics');
-    throw new Error(`Log payload does not contain enough topics ${topics.length}`);
-  }
-
-  // Extract marketId from the first indexed topic (topic1)
-  const marketIdTopic = topics[1];
-  const marketId = marketIdTopic
-    ? Number(bytesToBigint(marketIdTopic))
-    : 0;
-
-  runtime.log(`EVM Log Trigger: ResolutionRequested for market ${marketId}`);
-  resolveMarket(runtime, marketId);
-  return {};
 }
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
@@ -159,5 +135,3 @@ export async function main() {
   });
   await runner.run(initWorkflow);
 }
-
-main();

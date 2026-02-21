@@ -29,17 +29,22 @@ yarn sepolia:wallets
 
 Registrar agentes ERC-8004:
 ```bash
-yarn sepolia:register
+yarn sepolia:sync
 ```
 
-Actualizar metadata ERC-8004 de los agentes (opcional, para refresh/backfill):
+Normalizar agentes ya existentes (sin re-registrar IDs):
 ```bash
-yarn sepolia:metadata
+yarn sepolia:normalize
 ```
 
 Verificar consistencia y autorización:
 ```bash
 yarn sepolia:verify
+```
+
+Auditoría estricta on-chain (owner, wallet, tokenURI registration-v1, balances):
+```bash
+yarn sepolia:audit --min-eth 0.01
 ```
 
 Exportar archivo público sin private keys:
@@ -50,6 +55,7 @@ yarn sepolia:verify --public-out sepolia-agents.public.json
 Notas:
 - `scripts/sepolia-agents.json` contiene private keys (archivo privado).
 - `sepolia-agents.public.json` deja solo `name`, `address`, `agentId`.
+- `yarn sepolia:register` y `yarn sepolia:metadata` siguen funcionando como alias legacy.
 
 ## 3) Verificaciones mínimas esperadas
 

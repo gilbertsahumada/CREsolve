@@ -23,7 +23,7 @@ Use cases:
 Prerequisites:
 - `DEPLOYER_KEY` funded with Sepolia ETH
 - `SEPOLIA_RPC` set
-- worker agents generated and registered (`yarn sepolia:wallets`, `yarn sepolia:register`)
+- worker agents generated and synced (`yarn sepolia:wallets`, `yarn sepolia:sync`)
 
 Command:
 

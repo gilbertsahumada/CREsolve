@@ -43,6 +43,9 @@ forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
 forge script script/DeploySepolia.s.sol --rpc-url $SEPOLIA_RPC --broadcast -vvvv
 
 # Or from repo root (loads contracts/.env automatically)
+yarn sepolia:sync
+yarn sepolia:normalize
+yarn sepolia:audit --min-eth 0.01
 yarn sepolia:register
 yarn sepolia:metadata
 yarn sepolia:verify --public-out sepolia-agents.public.json

@@ -6,6 +6,8 @@
  * 2) optional on-chain checks (if --rpc-url / SEPOLIA_RPC is provided):
  *    - worker balance
  *    - identityRegistry.isAuthorizedOrOwner(worker, agentId)
+ *    - identityRegistry.getAgentWallet(agentId) matches worker
+ *    - tokenURI registration-v1 wallet endpoint matches worker
  *
  * Usage:
  *   npx tsx scripts/verify-agents.ts
@@ -23,6 +25,8 @@ const AGENTS_PATH = resolve(__dirname, "sepolia-agents.json");
 
 const IdentityRegistryABI = [
   "function isAuthorizedOrOwner(address spender, uint256 agentId) external view returns (bool)",
+  "function getAgentWallet(uint256 agentId) external view returns (address)",
+  "function tokenURI(uint256 tokenId) external view returns (string)",
 ];
 
 interface AgentEntry {
@@ -44,6 +48,39 @@ interface CliOptions {
   rpcUrl?: string;
   minEth: string;
   publicOut?: string;
+}
+
+function decodeRegistrationFromDataUri(uri: string): Record<string, unknown> | null {
+  const prefix = "data:application/json;base64,";
+  if (!uri.startsWith(prefix)) {
+    return null;
+  }
+
+  try {
+    const encoded = uri.slice(prefix.length);
+    const decoded = Buffer.from(encoded, "base64").toString("utf-8");
+    return JSON.parse(decoded) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function registrationHasWalletService(
+  registration: Record<string, unknown>,
+  expectedEndpoint: string,
+): boolean {
+  const services = registration.services;
+  if (!Array.isArray(services)) {
+    return false;
+  }
+
+  return services.some((service) => {
+    if (!service || typeof service !== "object") {
+      return false;
+    }
+    const item = service as { name?: unknown; endpoint?: unknown };
+    return item.name === "wallet" && item.endpoint === expectedEndpoint;
+  });
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -121,6 +158,8 @@ async function main() {
 
     let balanceWei: bigint | null = null;
     let isAuthorized: boolean | null = null;
+    let agentWalletMatches: boolean | null = null;
+    let walletServiceMatches: boolean | null = null;
 
     if (provider) {
       balanceWei = await provider.getBalance(agent.address);
@@ -130,6 +169,18 @@ async function main() {
           agent.agentId,
         );
         if (!isAuthorized) hasErrors = true;
+
+        const agentWallet = await identity.getAgentWallet(agent.agentId);
+        agentWalletMatches = agentWallet.toLowerCase() === agent.address.toLowerCase();
+        if (!agentWalletMatches) hasErrors = true;
+
+        const uri = await identity.tokenURI(agent.agentId);
+        const registration = decodeRegistrationFromDataUri(uri);
+        const expectedEndpoint = `eip155:${config.chainId}:${agent.address}`;
+        walletServiceMatches =
+          registration !== null &&
+          registrationHasWalletService(registration, expectedEndpoint);
+        if (!walletServiceMatches) hasErrors = true;
       }
       if (balanceWei < minWei) hasErrors = true;
     }
@@ -148,6 +199,12 @@ async function main() {
       console.log(
         `  isAuthorizedOrOwner: ${isAuthorized ? "OK" : "ERROR"}`,
       );
+    }
+    if (agentWalletMatches !== null) {
+      console.log(`  agentWallet aligned: ${agentWalletMatches ? "OK" : "ERROR"}`);
+    }
+    if (walletServiceMatches !== null) {
+      console.log(`  tokenURI wallet service: ${walletServiceMatches ? "OK" : "ERROR"}`);
     }
 
     console.log();

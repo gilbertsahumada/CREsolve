@@ -57,7 +57,7 @@ function main() {
   console.log(`  (This file is gitignored — it contains private keys)\n`);
   console.log("Next steps:");
   console.log("  1. Fund the deployer wallet with Sepolia ETH");
-  console.log("  2. Run: DEPLOYER_KEY=0x... SEPOLIA_RPC=https://... npx tsx scripts/register-agents.ts\n");
+  console.log("  2. Run: yarn sepolia:sync\n");
 }
 
 main();

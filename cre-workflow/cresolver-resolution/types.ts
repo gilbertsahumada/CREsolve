@@ -13,7 +13,7 @@ const EvmConfigSchema = z.object({
 
 const AgentConfigSchema = z.object({
   name: z.string(),
-  endpoint: z.string().url(),
+  endpoint: z.string().regex(/^https?:\/\/.+/),
 });
 
 export const ConfigSchema = z.object({

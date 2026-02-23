@@ -1,4 +1,5 @@
 {
+  "authorizedEVMAddress": "0x5ee75a1B1648C023e885E58bD3735Ae273f2cc52",
   "evms": [
     {
       "chainSelectorName": "ethereum-testnet-sepolia",

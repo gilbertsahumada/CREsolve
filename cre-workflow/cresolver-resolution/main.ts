@@ -95,7 +95,7 @@ const onLogTrigger = (runtime: Runtime<Config>, log: EVMLog): string => {
   return "Only logging for now, resolution logic is commented out for testing";
 };
 
-const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload) => {
+const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload): string => {
   const inputStr = new TextDecoder().decode(payload.input);
   let input: { market_id?: number };
   try {
@@ -112,7 +112,7 @@ const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload) => {
   const marketId = rawMarketId as number;
   runtime.log(`HTTP Trigger: Resolution requested for market ${marketId}`);
   //resolveMarket(runtime, marketId);
-  return {};
+  return "Request Processed: Only logging for now, resolution logic is commented out for testing";
 };
 
 // ─── Workflow wiring ──────────────────────────────────────────────────────────
@@ -132,12 +132,18 @@ function initWorkflow(config: Config) {
   });
 
   // ── Trigger 2: HTTP Trigger ─────────────────────────────────────────────
-  // Accepts external requests to trigger resolution manually
-  //const httpTrigger = new HTTPCapability().trigger({});
+  const httpTrigger = new HTTPCapability().trigger({
+    authorizedKeys: [
+      {
+        type: "KEY_TYPE_ECDSA_EVM",
+        publicKey: config.authorizedEVMAddress
+      }
+    ]
+  });
 
   return [
-    handler(evmLogTrigger, onLogTrigger),
-    //handler(httpTrigger, onHttpTrigger),
+    //handler(evmLogTrigger, onLogTrigger),
+    handler(httpTrigger, onHttpTrigger),
   ];
 }
 

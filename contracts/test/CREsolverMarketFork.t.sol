@@ -5,22 +5,18 @@ import {Test, console} from "forge-std/Test.sol";
 import {CREsolverMarket} from "../src/CREsolverMarket.sol";
 import {Market} from "../src/lib/CREsolverMarketTypes.sol";
 import {IERC8004IdentityV1} from "../src/interfaces/erc8004/IERC8004IdentityV1.sol";
-import {NotAgentOwner} from "../src/lib/CREsolverMarketErrors.sol";
+import {AlreadyJoined, NotAgentOwner} from "../src/lib/CREsolverMarketErrors.sol";
 
 contract CREsolverMarketForkTest is Test {
-    // Sepolia ERC-8004 registry addresses
-    address constant IDENTITY_REGISTRY = 0x8004A818BFB912233c491871b3d84c89A494BD9e;
-    address constant REPUTATION_REGISTRY = 0x8004B663056A597Dffe9eCcC1965A193B7388713;
-
-    // Deployed contract on Sepolia
+    // Deployed contracts on Sepolia
     address constant DEPLOYED_MARKET = 0x499B178A5152Fb658dDbA1622B9B29Bb88561863;
+    address constant IDENTITY_REGISTRY = 0x8004A818BFB912233c491871b3d84c89A494BD9e;
 
     CREsolverMarket internal market;
     bool internal forkEnabled;
 
     address internal worker;
     uint256 internal workerAgentId;
-    uint256 internal marketId;
 
     function setUp() public {
         string memory rpcUrl = vm.envOr("SEPOLIA_RPC", string(""));
@@ -39,30 +35,30 @@ contract CREsolverMarketForkTest is Test {
         vm.createSelectFork(rpcUrl);
         forkEnabled = true;
 
-        // Preconditions against real Sepolia registry.
+        // Point to the real deployed contract
+        market = CREsolverMarket(DEPLOYED_MARKET);
+
+        // Verify worker is authorized in the real Identity Registry
         bool authorized = IERC8004IdentityV1(IDENTITY_REGISTRY).isAuthorizedOrOwner(
             worker,
             workerAgentId
         );
         require(authorized, "FORK_WORKER_ADDRESS is not authorized for FORK_AGENT_ID on Sepolia");
-
-        vm.deal(address(this), 10 ether);
-        market = new CREsolverMarket(IDENTITY_REGISTRY, REPUTATION_REGISTRY);
-        marketId = market.createMarket{value: 1 ether}("Fork test market?", 1 days);
     }
+
+    // ─── Inspect on-chain state ──────────────────────────────────────
 
     function test_inspect_deployed_market() public view {
         if (!forkEnabled) return;
 
-        CREsolverMarket deployed = CREsolverMarket(DEPLOYED_MARKET);
-        uint256 count = deployed.marketCount();
+        uint256 count = market.marketCount();
         console.log("=== Deployed CREsolverMarket ===");
         console.log("  Address:", DEPLOYED_MARKET);
         console.log("  Total markets:", count);
 
         for (uint256 i = 0; i < count; i++) {
-            Market memory m = deployed.getMarket(i);
-            address[] memory workers = deployed.getMarketWorkers(i);
+            Market memory m = market.getMarket(i);
+            address[] memory workers = market.getMarketWorkers(i);
 
             console.log("");
             console.log("  --- Market #%d ---", i);
@@ -74,37 +70,121 @@ contract CREsolverMarketForkTest is Test {
             console.log("    Workers: %d", workers.length);
 
             for (uint256 j = 0; j < workers.length; j++) {
-                uint256 stake = deployed.stakes(i, workers[j]);
+                uint256 stake = market.stakes(i, workers[j]);
                 console.log("      [%d] %s (stake: %d wei)", j, workers[j], stake);
             }
         }
     }
 
-    function test_joinMarket_with_real_identity_registry() public {
+    // ─── Tests against real deployed contract ────────────────────────
+
+    function test_worker_already_joined_reverts() public {
         if (!forkEnabled) return;
 
+        // Market #0 was created by DeploySepolia and workers already joined.
+        // Trying to join again should revert.
         vm.deal(worker, 1 ether);
         vm.prank(worker);
-        market.joinMarket{value: 0.05 ether}(marketId, workerAgentId);
-
-        assertEq(market.stakes(marketId, worker), 0.05 ether);
-        assertEq(market.workerAgentIds(marketId, worker), workerAgentId);
+        vm.expectRevert(
+            abi.encodeWithSelector(AlreadyJoined.selector, 0, worker)
+        );
+        market.joinMarket{value: 0.005 ether}(0, workerAgentId);
     }
 
-    function test_joinMarket_reverts_unauthorized_worker_on_fork() public {
+    function test_unauthorized_worker_reverts() public {
         if (!forkEnabled) return;
 
+        // A random address should not be able to join with someone else's agentId
         address unauthorizedWorker = makeAddr("unauthorizedWorker");
         vm.deal(unauthorizedWorker, 1 ether);
 
         vm.prank(unauthorizedWorker);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                NotAgentOwner.selector,
-                unauthorizedWorker,
-                workerAgentId
-            )
+            abi.encodeWithSelector(NotAgentOwner.selector, unauthorizedWorker, workerAgentId)
         );
-        market.joinMarket{value: 0.05 ether}(marketId, workerAgentId);
+        market.joinMarket{value: 0.005 ether}(0, workerAgentId);
+    }
+
+    function test_resolve_market_on_fork() public {
+        if (!forkEnabled) return;
+
+        uint256 mid = 0;
+        Market memory m = market.getMarket(mid);
+        require(!m.resolved, "Market already resolved");
+
+        address[] memory workers = market.getMarketWorkers(mid);
+        uint256 workerCount = workers.length;
+
+        console.log("=== Resolving Market #%d on fork ===", mid);
+        console.log("  Question:", m.question);
+        console.log("  Workers:", workerCount);
+
+        // Build mock weights and scores (simulates what CRE workflow would compute)
+        uint256[] memory weights = new uint256[](workerCount);
+        uint8[] memory dimScores = new uint8[](workerCount * 3);
+
+        for (uint256 i = 0; i < workerCount; i++) {
+            weights[i] = 100; // equal weight
+            dimScores[i * 3]     = 80; // resolutionQuality
+            dimScores[i * 3 + 1] = 75; // sourceQuality
+            dimScores[i * 3 + 2] = 70; // analysisDepth
+        }
+
+        // Record balances before resolution
+        uint256[] memory balancesBefore = new uint256[](workerCount);
+        for (uint256 i = 0; i < workerCount; i++) {
+            balancesBefore[i] = market.balances(workers[i]);
+        }
+
+        // Resolve as the contract owner (deployer is authorized resolver)
+        address owner = market.owner();
+        vm.prank(owner);
+        market.resolveMarket(mid, workers, weights, dimScores, true);
+
+        // Verify market is resolved
+        Market memory resolved = market.getMarket(mid);
+        assertTrue(resolved.resolved, "Market should be resolved");
+
+        // Verify rewards + stakes were distributed
+        console.log("");
+        console.log("  === Post-resolution ===");
+        for (uint256 i = 0; i < workerCount; i++) {
+            uint256 balance = market.balances(workers[i]);
+            assertTrue(balance > balancesBefore[i], "Worker should have received rewards");
+            console.log("    [%d] %s balance: %d wei", i, workers[i], balance);
+        }
+
+        // Verify reputation was updated
+        for (uint256 i = 0; i < workerCount; i++) {
+            (uint256 resQ, uint256 srcQ, uint256 depth, uint256 count) = market.getReputation(workers[i]);
+            assertTrue(count > 0, "Worker should have reputation count");
+            console.log("    [%d] reputation: resQ=%d srcQ=%d", i, resQ, srcQ);
+            console.log("        depth=%d count=%d", depth, count);
+        }
+
+        console.log("");
+        console.log("  Market #%d resolved successfully", mid);
+    }
+
+    function test_market_state_is_consistent() public view {
+        if (!forkEnabled) return;
+
+        Market memory m = market.getMarket(0);
+        address[] memory workers = market.getMarketWorkers(0);
+
+        // Market exists and has data
+        assertTrue(bytes(m.question).length > 0, "Market should have a question");
+        assertTrue(m.rewardPool > 0, "Market should have a reward pool");
+        assertTrue(m.deadline > 0, "Market should have a deadline");
+        assertTrue(m.creator != address(0), "Market should have a creator");
+
+        // Workers joined
+        assertTrue(workers.length > 0, "Market should have workers");
+
+        // Each worker has a stake
+        for (uint256 i = 0; i < workers.length; i++) {
+            uint256 stake = market.stakes(0, workers[i]);
+            assertTrue(stake > 0, "Each worker should have a stake");
+        }
     }
 }

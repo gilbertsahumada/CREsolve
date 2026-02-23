@@ -11,10 +11,11 @@ import {
 } from "@chainlink/cre-sdk";
 import { keccak256, toBytes, type Address } from "viem";
 
-import { ConfigSchema, type Config, type EvmConfig } from "./types";
+import { ConfigSchema, type Config, type EvmConfig, type WorkerData, type ResolutionResult } from "./types";
 import { readMarketWorkers, readMarketQuestion, submitResolution } from "./evm";
-import { queryAllAgents, challengeAllAgents } from "./agents";
-import { evaluateWorkers, computeResolution } from "./evaluate";
+// AI agent functions — kept for future activation
+// import { queryAllAgents, challengeAllAgents } from "./agents";
+// import { evaluateWorkers, computeResolution } from "./evaluate";
 
 // ─── Event signature for the EVM Log Trigger ─────────────────────────────────
 
@@ -51,6 +52,28 @@ function marketIdFromLog(log: EVMLog): number {
   return Number(bytesToBigint(marketIdTopic));
 }
 
+// ─── Mock resolution (bypasses AI agents for on-chain flow testing) ──────────
+
+function computeMockResolution(workers: WorkerData[]): ResolutionResult {
+  const addresses = workers.map((w) => w.address);
+  const weights = workers.map(() => BigInt(100));
+
+  // 3 dimension scores per worker: [resQuality, srcQuality, analysisDepth]
+  const dimScores: number[] = [];
+  for (let i = 0; i < workers.length; i++) {
+    dimScores.push(80); // resolutionQuality
+    dimScores.push(75); // sourceQuality
+    dimScores.push(70); // analysisDepth
+  }
+
+  return {
+    resolution: true,
+    workers: addresses,
+    weights,
+    dimScores,
+  };
+}
+
 // ─── Core resolution logic (shared by both triggers) ─────────────────────────
 
 function resolveMarket(
@@ -66,19 +89,13 @@ function resolveMarket(
   const question = readMarketQuestion(runtime, evmClient, marketId);
   const workers = readMarketWorkers(runtime, evmClient, marketId);
 
-  // Step 2: Query all agents for their determinations
-  const determinations = queryAllAgents(runtime, workers, marketId, question);
+  runtime.log(`Market question: "${question.slice(0, 80)}"`);
+  runtime.log(`Found ${workers.length} workers on-chain`);
 
-  // Step 3: Challenge workers
-  const challengeResults = challengeAllAgents(runtime, workers, determinations);
+  // Step 2: Compute mock resolution (FUTURE: queryAllAgents + challengeAllAgents + evaluateWorkers)
+  const resolution = computeMockResolution(workers);
 
-  // Step 4: Evaluate worker quality
-  const evaluations = evaluateWorkers(determinations, challengeResults);
-
-  // Step 5: Compute weighted majority vote + blinded weights
-  const resolution = computeResolution(determinations, evaluations, workers);
-
-  // Step 6: Submit resolution on-chain via signed report
+  // Step 3: Submit resolution on-chain via signed report
   submitResolution(runtime, evmClient, marketId, resolution);
 
   runtime.log(
@@ -111,8 +128,8 @@ const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload): string =
 
   const marketId = rawMarketId as number;
   runtime.log(`HTTP Trigger: Resolution requested for market ${marketId}`);
-  //resolveMarket(runtime, marketId);
-  return "Request Processed: Only logging for now, resolution logic is commented out for testing";
+  resolveMarket(runtime, marketId);
+  return `Market ${marketId} resolution submitted`;
 };
 
 // ─── Workflow wiring ──────────────────────────────────────────────────────────

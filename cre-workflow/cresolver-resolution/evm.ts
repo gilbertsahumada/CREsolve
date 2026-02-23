@@ -301,7 +301,7 @@ export function submitResolution(
       receiver: receiverAddr,
       report,
       gasConfig: {
-        gasLimit: String(evm.gas_limit),
+        gasLimit: evm.gasLimit,
       },
     })
     .result();

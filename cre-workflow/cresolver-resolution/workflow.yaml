@@ -3,7 +3,7 @@ local-simulation:
     workflow-name: "cresolver-resolution-local"
   workflow-artifacts:
     workflow-path: "./main.ts"
-    config-path: "./config.staging.json"
+    config-path: "./local.config.json"
     secrets-path: "../secrets.yaml"
 
 staging-settings:

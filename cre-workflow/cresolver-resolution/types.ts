@@ -3,12 +3,13 @@ import { z } from "zod";
 // ─── Config schema (validated by CRE Runner) ─────────────────────────────────
 
 const EvmConfigSchema = z.object({
-  // Chain selector can exceed JS safe integer range (e.g. Sepolia),
-  // so string form is supported and preferred for non-local chains.
-  chain_selector: z.union([z.number().int().nonnegative(), z.string().regex(/^\d+$/)]),
+  // Use chainSelectorName for known chains (resolved via getNetwork()),
+  // or chain_selector for experimental/local chains (passed directly).
+  chainSelectorName: z.string().optional(),
+  chain_selector: z.union([z.number().int().nonnegative(), z.string().regex(/^\d+$/)]).optional(),
   market_address: z.string(),
   receiver_address: z.string(),
-  gas_limit: z.number(),
+  gasLimit: z.string(),
 });
 
 const AgentConfigSchema = z.object({

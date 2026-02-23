@@ -2,6 +2,7 @@ import {
   EVMClient,
   HTTPCapability,
   bytesToBigint,
+  getNetwork,
   handler,
   Runner,
   type EVMLog,
@@ -10,7 +11,7 @@ import {
 } from "@chainlink/cre-sdk";
 import { keccak256, toBytes, type Address } from "viem";
 
-import { ConfigSchema, type Config } from "./types";
+import { ConfigSchema, type Config, type EvmConfig } from "./types";
 import { readMarketWorkers, readMarketQuestion, submitResolution } from "./evm";
 import { queryAllAgents, challengeAllAgents } from "./agents";
 import { evaluateWorkers, computeResolution } from "./evaluate";
@@ -22,8 +23,22 @@ const RESOLUTION_REQUESTED_TOPIC = keccak256(
   toBytes("ResolutionRequested(uint256,string)"),
 );
 
-function parseChainSelector(value: Config["evms"][number]["chain_selector"]): bigint {
-  return BigInt(typeof value === "string" ? value : value);
+function resolveEvmClient(evmConfig: EvmConfig): EVMClient {
+  if (evmConfig.chainSelectorName) {
+    const network = getNetwork({
+      chainFamily: "evm",
+      chainSelectorName: evmConfig.chainSelectorName,
+      isTestnet: true,
+    });
+    if (!network) {
+      throw new Error(`Network not found for chain selector name: ${evmConfig.chainSelectorName}`);
+    }
+    return new EVMClient(network.chainSelector.selector);
+  }
+  if (evmConfig.chain_selector !== undefined) {
+    return new EVMClient(BigInt(evmConfig.chain_selector));
+  }
+  throw new Error("Either chainSelectorName or chain_selector must be provided in config");
 }
 
 function marketIdFromLog(log: EVMLog): number {
@@ -43,7 +58,7 @@ function resolveMarket(
   marketId: number,
 ): void {
   const evm = runtime.config.evms[0];
-  const evmClient = new EVMClient(parseChainSelector(evm.chain_selector));
+  const evmClient = resolveEvmClient(evm);
 
   runtime.log(`Starting resolution for market ${marketId}`);
 
@@ -104,8 +119,7 @@ const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload) => {
 
 function initWorkflow(config: Config) {
   const evm = config.evms[0];
-  const chainSelector = parseChainSelector(evm.chain_selector);
-  const evmClient = new EVMClient(chainSelector);
+  const evmClient = resolveEvmClient(evm);
   const marketAddr = evm.market_address as Address;
 
   // ── Trigger 1: EVM Log Trigger ──────────────────────────────────────────

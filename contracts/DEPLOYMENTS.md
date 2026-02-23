@@ -11,7 +11,7 @@ Command:
 
 ```bash
 cd contracts
-forge script script/DeploySepolia.s.sol --rpc-url $SEPOLIA_RPC --broadcast -vvvv
+source contracts/.env && forge script script/DeploySepolia.s.sol --rpc-url $SEPOLIA_RPC --broadcast -vvvv 
 ```
 
 After deployment:

@@ -24,10 +24,10 @@ import {CREReceiver} from "../src/CREReceiver.sol";
  */
 contract DeploySepoliaScript is Script {
     function run() external {
-        // Sepolia/Testnets ERC-8004 addresses (overridable via env)
+        // Sepolia/Testnets addresses (overridable via env) 
         address IDENTITY_REGISTRY = vm.envOr("ERC8004_IDENTITY", 0x8004A818BFB912233c491871b3d84c89A494BD9e);
         address REPUTATION_REGISTRY = vm.envOr("ERC8004_REPUTATION", 0x8004B663056A597Dffe9eCcC1965A193B7388713);
-        address KEYSTONE_FORWARDER = vm.envOr("KEYSTONE_FORWARDER", address(0));
+        address KEYSTONE_FORWARDER = vm.envOr("KEYSTONE_FORWARDER", 0x15fC6ae953E024d975e77382eEeC56A9101f9F88);
 
         // ── Read sepolia-agents.json ─────────────────────────────────────
         string memory json = vm.readFile("../scripts/sepolia-agents.json");
@@ -67,6 +67,7 @@ contract DeploySepoliaScript is Script {
         console.log("  Deployer: %s", deployer);
         console.log("  IdentityRegistry: %s", IDENTITY_REGISTRY);
         console.log("  ReputationRegistry: %s", REPUTATION_REGISTRY);
+        console.log("  KeystoneForwarder: %s", KEYSTONE_FORWARDER);
 
         vm.startBroadcast(deployerKey);
 
@@ -106,8 +107,8 @@ contract DeploySepoliaScript is Script {
         for (uint256 i = 0; i < 3; i++) {
             vm.startBroadcast(workerKeys[i]);
 
-            market.joinMarket{value: 0.005 ether}(marketId, agentIds[i]);
-            console.log("  %s joined (agentId: %d, stake: 0.005 ETH)", names[i], agentIds[i]);
+            market.joinMarket{value: 0.0005 ether}(marketId, agentIds[i]);
+            console.log("  %s joined (agentId: %d, stake: 0.0005 ETH)", names[i], agentIds[i]);
 
             vm.stopBroadcast();
         }

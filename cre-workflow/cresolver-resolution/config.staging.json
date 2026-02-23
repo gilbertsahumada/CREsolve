@@ -5,7 +5,7 @@
       "chainSelectorName": "ethereum-testnet-sepolia",
       "market_address": "0x499B178A5152Fb658dDbA1622B9B29Bb88561863",
       "receiver_address": "0x81B324C2FA2c092d17752E5998b62A8CceaD2eA4",
-      "gasLimit": "500000"
+      "gasLimit": "2000000"
     }
   ],
   "agents": [

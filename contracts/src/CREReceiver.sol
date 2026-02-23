@@ -30,6 +30,7 @@ contract CREReceiver is ReceiverTemplate {
         address _market,
         address _forwarder
     ) ReceiverTemplate(_forwarder) {
+        require(_market != address(0), "Invalid market address");
         market = ICREsolverMarket(_market);
     }
 

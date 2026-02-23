@@ -12,8 +12,8 @@ import type {
   AgentResolveResponse,
   AgentChallengeResponse,
   ChallengeResult,
-} from "./types.js";
-import { generateChallenges } from "./evaluate.js";
+} from "./types";
+import { generateChallenges } from "./evaluate";
 
 const httpClient = new HTTPClient();
 

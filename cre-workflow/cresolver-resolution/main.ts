@@ -10,10 +10,10 @@ import {
 } from "@chainlink/cre-sdk";
 import { keccak256, toBytes, type Address } from "viem";
 
-import { ConfigSchema, type Config } from "./types.js";
-import { readMarketWorkers, readMarketQuestion, submitResolution } from "./evm.js";
-import { queryAllAgents, challengeAllAgents } from "./agents.js";
-import { evaluateWorkers, computeResolution } from "./evaluate.js";
+import { ConfigSchema, type Config } from "./types";
+import { readMarketWorkers, readMarketQuestion, submitResolution } from "./evm";
+import { queryAllAgents, challengeAllAgents } from "./agents";
+import { evaluateWorkers, computeResolution } from "./evaluate";
 
 // ─── Event signature for the EVM Log Trigger ─────────────────────────────────
 
@@ -96,7 +96,7 @@ const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload) => {
 
   const marketId = rawMarketId as number;
   runtime.log(`HTTP Trigger: Resolution requested for market ${marketId}`);
-  resolveMarket(runtime, marketId);
+  //resolveMarket(runtime, marketId);
   return {};
 };
 

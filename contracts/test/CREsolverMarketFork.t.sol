@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 import {CREsolverMarket} from "../src/CREsolverMarket.sol";
+import {Market} from "../src/lib/CREsolverMarketTypes.sol";
 import {IERC8004IdentityV1} from "../src/interfaces/erc8004/IERC8004IdentityV1.sol";
 import {NotAgentOwner} from "../src/lib/CREsolverMarketErrors.sol";
 
@@ -10,6 +11,9 @@ contract CREsolverMarketForkTest is Test {
     // Sepolia ERC-8004 registry addresses
     address constant IDENTITY_REGISTRY = 0x8004A818BFB912233c491871b3d84c89A494BD9e;
     address constant REPUTATION_REGISTRY = 0x8004B663056A597Dffe9eCcC1965A193B7388713;
+
+    // Deployed contract on Sepolia
+    address constant DEPLOYED_MARKET = 0x499B178A5152Fb658dDbA1622B9B29Bb88561863;
 
     CREsolverMarket internal market;
     bool internal forkEnabled;
@@ -45,6 +49,35 @@ contract CREsolverMarketForkTest is Test {
         vm.deal(address(this), 10 ether);
         market = new CREsolverMarket(IDENTITY_REGISTRY, REPUTATION_REGISTRY);
         marketId = market.createMarket{value: 1 ether}("Fork test market?", 1 days);
+    }
+
+    function test_inspect_deployed_market() public view {
+        if (!forkEnabled) return;
+
+        CREsolverMarket deployed = CREsolverMarket(DEPLOYED_MARKET);
+        uint256 count = deployed.marketCount();
+        console.log("=== Deployed CREsolverMarket ===");
+        console.log("  Address:", DEPLOYED_MARKET);
+        console.log("  Total markets:", count);
+
+        for (uint256 i = 0; i < count; i++) {
+            Market memory m = deployed.getMarket(i);
+            address[] memory workers = deployed.getMarketWorkers(i);
+
+            console.log("");
+            console.log("  --- Market #%d ---", i);
+            console.log("    Question:", m.question);
+            console.log("    Reward pool: %d wei", m.rewardPool);
+            console.log("    Deadline: %d", m.deadline);
+            console.log("    Creator:", m.creator);
+            console.log("    Resolved:", m.resolved ? "YES" : "NO");
+            console.log("    Workers: %d", workers.length);
+
+            for (uint256 j = 0; j < workers.length; j++) {
+                uint256 stake = deployed.stakes(i, workers[j]);
+                console.log("      [%d] %s (stake: %d wei)", j, workers[j], stake);
+            }
+        }
     }
 
     function test_joinMarket_with_real_identity_registry() public {

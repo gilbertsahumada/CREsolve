@@ -70,6 +70,8 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         if (identityUnset != reputationUnset) revert ZeroAddress();
         identityRegistry = IERC8004IdentityV1(_identityRegistry);
         reputationRegistry = IERC8004Reputation(_reputationRegistry);
+        // Set owner as authorized resolver by default for testing; can be revoked later
+        authorizedResolvers[msg.sender] = true;
     }
 
     // ─── Core Functions ────────────────────────────────────────────────

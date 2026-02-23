@@ -88,11 +88,7 @@ contract DeploySepoliaScript is Script {
             console.log("  KEYSTONE_FORWARDER not set: skipping CREReceiver deploy");
         }
 
-        // 3. Authorize deployer as resolver (for direct resolution demo)
-        market.setAuthorizedResolver(deployer, true);
-        console.log("  Deployer authorized as resolver");
-
-        // 4. Create a test market
+        // 3. Create a test market
         uint256 marketId = market.createMarket{value: 0.01 ether}(
             "Will bitcoin reach 200k by end of 2026?",
             7 days

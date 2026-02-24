@@ -10,7 +10,7 @@ import type {
   ChallengeResult,
   WorkerEvaluation,
   LLMWorkerScores,
-} from "./types";
+} from "../types";
 
 const confidentialClient = new ConfidentialHTTPClient();
 

@@ -14,7 +14,7 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import type { Config, WorkerData, ResolutionResult } from "./types.js";
+import type { Config, WorkerData, ResolutionResult } from "../types.js";
 
 // ─── ABI fragments for viem encoding ────────────────────────────────────────
 
@@ -77,8 +77,155 @@ const getReputationAbi = [
   },
 ] as const;
 
+const identityRegistryAbi = [
+  {
+    name: "identityRegistry",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
+] as const;
+
+const workerAgentIdsAbi = [
+  {
+    name: "workerAgentIds",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "marketId", type: "uint256" },
+      { name: "worker", type: "address" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;
+
+const tokenURIAbi = [
+  {
+    name: "tokenURI",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ type: "string" }],
+  },
+] as const;
+
+const aggregate3Abi = [
+  {
+    name: "aggregate3",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "calls",
+        type: "tuple[]",
+        components: [
+          { name: "target", type: "address" },
+          { name: "allowFailure", type: "bool" },
+          { name: "callData", type: "bytes" },
+        ],
+      },
+    ],
+    outputs: [
+      {
+        name: "returnData",
+        type: "tuple[]",
+        components: [
+          { name: "success", type: "bool" },
+          { name: "returnData", type: "bytes" },
+        ],
+      },
+    ],
+  },
+] as const;
+
 // Zero address used as `from` in read calls
 const ZERO_ADDRESS: Address = "0x0000000000000000000000000000000000000000";
+
+// Multicall3 is deployed at this deterministic address on all major EVM chains
+const MULTICALL3_ADDRESS: Address = "0xcA11bde05977b3631167028862bE2a173976CA11";
+
+// ─── Multicall3 helper ──────────────────────────────────────────────────────
+
+interface MulticallCall {
+  target: Address;
+  allowFailure: boolean;
+  callData: Hex;
+}
+
+interface MulticallResult {
+  success: boolean;
+  returnData: Hex;
+}
+
+function multicall3(
+  runtime: Runtime<Config>,
+  evmClient: EVMClient,
+  calls: MulticallCall[],
+): MulticallResult[] {
+  const callData = encodeFunctionData({
+    abi: aggregate3Abi,
+    functionName: "aggregate3",
+    args: [calls],
+  });
+
+  const result = evmClient
+    .callContract(runtime, {
+      call: encodeCallMsg({
+        from: ZERO_ADDRESS,
+        to: MULTICALL3_ADDRESS,
+        data: callData,
+      }),
+    })
+    .result();
+
+  return decodeFunctionResult({
+    abi: aggregate3Abi,
+    functionName: "aggregate3",
+    data: bytesToHex(result.data),
+  }) as unknown as MulticallResult[];
+}
+
+// ─── Helpers for on-chain endpoint resolution ───────────────────────────────
+
+function fromBase64(str: string): string {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(str, "base64").toString("utf-8");
+  }
+  return atob(str);
+}
+
+interface RegistrationService {
+  name: string;
+  endpoint: string;
+}
+
+function parseA2aEndpoint(dataUri: string): string | null {
+  const prefix = "data:application/json;base64,";
+  if (!dataUri.startsWith(prefix)) {
+    return null;
+  }
+
+  try {
+    const jsonStr = fromBase64(dataUri.slice(prefix.length));
+    const registration = JSON.parse(jsonStr) as {
+      services?: RegistrationService[];
+    };
+
+    if (!Array.isArray(registration.services)) {
+      return null;
+    }
+
+    // Match "A2A" service name (case-insensitive to be robust)
+    const a2aService = registration.services.find(
+      (s) =>
+        s.name.toUpperCase() === "A2A" && typeof s.endpoint === "string",
+    );
+    return a2aService?.endpoint ?? null;
+  } catch {
+    return null;
+  }
+}
 
 // ─── Read market data and worker info ────────────────────────────────────────
 
@@ -87,34 +234,44 @@ export function readMarketWorkers(
   evmClient: EVMClient,
   marketId: number,
 ): WorkerData[] {
-  const config = runtime.config;
-  const evm = config.evms[0];
+  const evm = runtime.config.evms[0];
   const marketAddr = evm.market_address as Address;
 
-  // Read market data
-  const marketCallData = encodeFunctionData({
-    abi: getMarketAbi,
-    functionName: "getMarket",
-    args: [BigInt(marketId)],
-  });
-
-  const marketResult = evmClient
-    .callContract(runtime, {
-      call: encodeCallMsg({
-        from: ZERO_ADDRESS,
-        to: marketAddr,
-        data: marketCallData,
+  // ── Batch 1: getMarket + getMarketWorkers + identityRegistry ────────────
+  const batch1 = multicall3(runtime, evmClient, [
+    {
+      target: marketAddr,
+      allowFailure: false,
+      callData: encodeFunctionData({
+        abi: getMarketAbi,
+        functionName: "getMarket",
+        args: [BigInt(marketId)],
       }),
-    })
-    .result();
+    },
+    {
+      target: marketAddr,
+      allowFailure: false,
+      callData: encodeFunctionData({
+        abi: getMarketWorkersAbi,
+        functionName: "getMarketWorkers",
+        args: [BigInt(marketId)],
+      }),
+    },
+    {
+      target: marketAddr,
+      allowFailure: false,
+      callData: encodeFunctionData({
+        abi: identityRegistryAbi,
+        functionName: "identityRegistry",
+      }),
+    },
+  ]);
 
-  const marketDecoded = decodeFunctionResult({
+  const market = decodeFunctionResult({
     abi: getMarketAbi,
     functionName: "getMarket",
-    data: bytesToHex(marketResult.data),
-  });
-
-  const market = marketDecoded as unknown as {
+    data: batch1[0].returnData,
+  }) as unknown as {
     question: string;
     rewardPool: bigint;
     deadline: bigint;
@@ -126,93 +283,140 @@ export function readMarketWorkers(
     throw new Error(`Market ${marketId} is already resolved`);
   }
 
-  // Read worker addresses
-  const workersCallData = encodeFunctionData({
-    abi: getMarketWorkersAbi,
-    functionName: "getMarketWorkers",
-    args: [BigInt(marketId)],
-  });
-
-  const workersResult = evmClient
-    .callContract(runtime, {
-      call: encodeCallMsg({
-        from: ZERO_ADDRESS,
-        to: marketAddr,
-        data: workersCallData,
-      }),
-    })
-    .result();
-
   const workerAddresses = decodeFunctionResult({
     abi: getMarketWorkersAbi,
     functionName: "getMarketWorkers",
-    data: bytesToHex(workersResult.data),
+    data: batch1[1].returnData,
   }) as Address[];
 
-  // Read each worker's stake and reputation
+  const identityRegistryAddr = decodeFunctionResult({
+    abi: identityRegistryAbi,
+    functionName: "identityRegistry",
+    data: batch1[2].returnData,
+  }) as Address;
+
+  if (workerAddresses.length === 0) {
+    throw new Error(`Market ${marketId} has no workers`);
+  }
+
+  // ── Batch 2: per-worker agentId + stake + reputation ────────────────────
+  // Layout: [agentId_0, stake_0, rep_0, agentId_1, stake_1, rep_1, ...]
+  const batch2Calls: MulticallCall[] = [];
+  for (const addr of workerAddresses) {
+    batch2Calls.push({
+      target: marketAddr,
+      allowFailure: false,
+      callData: encodeFunctionData({
+        abi: workerAgentIdsAbi,
+        functionName: "workerAgentIds",
+        args: [BigInt(marketId), addr],
+      }),
+    });
+    batch2Calls.push({
+      target: marketAddr,
+      allowFailure: false,
+      callData: encodeFunctionData({
+        abi: stakesAbi,
+        functionName: "stakes",
+        args: [BigInt(marketId), addr],
+      }),
+    });
+    batch2Calls.push({
+      target: marketAddr,
+      allowFailure: false,
+      callData: encodeFunctionData({
+        abi: getReputationAbi,
+        functionName: "getReputation",
+        args: [addr],
+      }),
+    });
+  }
+
+  const batch2 = multicall3(runtime, evmClient, batch2Calls);
+
+  // Parse batch 2: extract agentIds for batch 3
+  const agentIds: bigint[] = [];
+  const stakes: bigint[] = [];
+  const reputations: Array<readonly [bigint, bigint, bigint, bigint]> = [];
+
+  for (let i = 0; i < workerAddresses.length; i++) {
+    const base = i * 3;
+
+    agentIds.push(
+      decodeFunctionResult({
+        abi: workerAgentIdsAbi,
+        functionName: "workerAgentIds",
+        data: batch2[base].returnData,
+      }) as bigint,
+    );
+
+    stakes.push(
+      decodeFunctionResult({
+        abi: stakesAbi,
+        functionName: "stakes",
+        data: batch2[base + 1].returnData,
+      }) as bigint,
+    );
+
+    reputations.push(
+      decodeFunctionResult({
+        abi: getReputationAbi,
+        functionName: "getReputation",
+        data: batch2[base + 2].returnData,
+      }) as readonly [bigint, bigint, bigint, bigint],
+    );
+  }
+
+  // ── Batch 3: tokenURI for each worker (needs agentIds from batch 2) ─────
+  const batch3Calls: MulticallCall[] = agentIds.map((agentId) => ({
+    target: identityRegistryAddr,
+    allowFailure: true, // tokenURI may fail for invalid agentIds
+    callData: encodeFunctionData({
+      abi: tokenURIAbi,
+      functionName: "tokenURI",
+      args: [agentId],
+    }),
+  }));
+
+  const batch3 = multicall3(runtime, evmClient, batch3Calls);
+
+  // ── Assemble WorkerData from all batches ────────────────────────────────
   const workers: WorkerData[] = [];
+
   for (let i = 0; i < workerAddresses.length; i++) {
     const addr = workerAddresses[i];
 
-    // Match workers to agents by index (agent[i] → worker[i])
-    const agent = config.agents[i];
-    if (!agent) continue;
+    if (!batch3[i].success) {
+      runtime.log(
+        `Worker ${addr.slice(0, 10)}... (agentId=${agentIds[i]}): tokenURI call failed, skipping`,
+      );
+      continue;
+    }
 
-    // Read stake
-    const stakeCallData = encodeFunctionData({
-      abi: stakesAbi,
-      functionName: "stakes",
-      args: [BigInt(marketId), addr],
-    });
+    const tokenURI = decodeFunctionResult({
+      abi: tokenURIAbi,
+      functionName: "tokenURI",
+      data: batch3[i].returnData,
+    }) as string;
 
-    const stakeResult = evmClient
-      .callContract(runtime, {
-        call: encodeCallMsg({
-          from: ZERO_ADDRESS,
-          to: marketAddr,
-          data: stakeCallData,
-        }),
-      })
-      .result();
+    const endpoint = parseA2aEndpoint(tokenURI);
+    if (!endpoint) {
+      runtime.log(
+        `Worker ${addr.slice(0, 10)}... (agentId=${agentIds[i]}): no A2A service in tokenURI, skipping`,
+      );
+      continue;
+    }
 
-    const stake = decodeFunctionResult({
-      abi: stakesAbi,
-      functionName: "stakes",
-      data: bytesToHex(stakeResult.data),
-    }) as bigint;
-
-    // Read reputation
-    const repCallData = encodeFunctionData({
-      abi: getReputationAbi,
-      functionName: "getReputation",
-      args: [addr],
-    });
-
-    const repResult = evmClient
-      .callContract(runtime, {
-        call: encodeCallMsg({
-          from: ZERO_ADDRESS,
-          to: marketAddr,
-          data: repCallData,
-        }),
-      })
-      .result();
-
-    const repDecoded = decodeFunctionResult({
-      abi: getReputationAbi,
-      functionName: "getReputation",
-      data: bytesToHex(repResult.data),
-    }) as readonly [bigint, bigint, bigint, bigint];
-
+    const rep = reputations[i];
     workers.push({
       address: addr,
-      endpoint: agent.endpoint,
-      stake,
+      endpoint,
+      stake: stakes[i],
       reputation: {
-        resQuality: Number(repDecoded[0]),
-        srcQuality: Number(repDecoded[1]),
-        analysisDepth: Number(repDecoded[2]),
-        count: Number(repDecoded[3]),
+        resQuality: Number(rep[0]),
+        srcQuality: Number(rep[1]),
+        analysisDepth: Number(rep[2]),
+        count: Number(rep[3]),
       },
     });
   }

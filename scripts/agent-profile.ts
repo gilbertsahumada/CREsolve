@@ -9,6 +9,8 @@ export interface AgentProfileInput {
   name: string;
   address: string;
   agentId: number;
+  /** HTTP endpoint for the A2A API (e.g. "https://agent1.example.com") */
+  endpoint?: string;
 }
 
 export interface AgentProfileContext {
@@ -43,12 +45,22 @@ export function buildRegistrationFile(
   agent: AgentProfileInput,
   context: AgentProfileContext,
 ): Record<string, unknown> {
-  const services: Array<{ name: string; endpoint: string }> = [
+  const services: Array<Record<string, unknown>> = [
     {
       name: "wallet",
       endpoint: `eip155:${context.chainId}:${agent.address}`,
     },
   ];
+
+  if (agent.endpoint) {
+    services.push({
+      name: "A2A",
+      endpoint: agent.endpoint,
+      protocol: "cresolver",
+      category: "resolution",
+      tags: ["prediction-market", "resolution", "ai-agent"],
+    });
+  }
 
   if (INCLUDE_REPOSITORY_SERVICE) {
     services.push({

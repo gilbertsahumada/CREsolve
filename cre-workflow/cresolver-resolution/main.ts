@@ -11,18 +11,20 @@ import {
 } from "@chainlink/cre-sdk";
 import { keccak256, toBytes, type Address } from "viem";
 
-import { ConfigSchema, type Config, type EvmConfig, type WorkerData, type ResolutionResult } from "./types";
-import { readMarketWorkers, readMarketQuestion, submitResolution } from "./evm";
-import { queryAllAgents, challengeAllAgents } from "./agents";
-import { evaluateWithLLM } from "./llm";
-import { computeResolution } from "./evaluate";
+import { ConfigSchema, type Config, type EvmConfig } from "./types";
+import { readMarketWorkers, readMarketQuestion, submitResolution } from "./chain/evm";
+import { queryAllAgents, challengeAllAgents } from "./agents/query";
+import { evaluateWithLLM } from "./agents/llm";
+import { computeResolution } from "./resolution/evaluate";
 
 // ─── Event signature for the EVM Log Trigger ─────────────────────────────────
 
 // keccak256("ResolutionRequested(uint256,string)")
+/*
 const RESOLUTION_REQUESTED_TOPIC = keccak256(
   toBytes("ResolutionRequested(uint256,string)"),
 );
+*/
 
 function resolveEvmClient(evmConfig: EvmConfig): EVMClient {
   if (evmConfig.chainSelectorName) {
@@ -42,6 +44,7 @@ function resolveEvmClient(evmConfig: EvmConfig): EVMClient {
   throw new Error("Either chainSelectorName or chain_selector must be provided in config");
 }
 
+/*
 function marketIdFromLog(log: EVMLog): number {
   if (log.topics.length < 2 || !log.topics[1]) {
     throw new Error(
@@ -51,28 +54,7 @@ function marketIdFromLog(log: EVMLog): number {
   const marketIdTopic = log.topics[1];
   return Number(bytesToBigint(marketIdTopic));
 }
-
-// ─── Mock resolution (bypasses AI agents for on-chain flow testing) ──────────
-
-function computeMockResolution(workers: WorkerData[]): ResolutionResult {
-  const addresses = workers.map((w) => w.address);
-  const weights = workers.map(() => BigInt(100));
-
-  // 3 dimension scores per worker: [resQuality, srcQuality, analysisDepth]
-  const dimScores: number[] = [];
-  for (let i = 0; i < workers.length; i++) {
-    dimScores.push(80); // resolutionQuality
-    dimScores.push(75); // sourceQuality
-    dimScores.push(70); // analysisDepth
-  }
-
-  return {
-    resolution: true,
-    workers: addresses,
-    weights,
-    dimScores,
-  };
-}
+*/
 
 // ─── Core resolution logic (shared by both triggers) ─────────────────────────
 
@@ -107,13 +89,14 @@ function resolveMarket(
 }
 
 // ─── Trigger handlers ─────────────────────────────────────────────────────────
-
+/*
 const onLogTrigger = (runtime: Runtime<Config>, log: EVMLog): string => {
   const marketId = marketIdFromLog(log);
   runtime.log(`EVM Log Trigger: ResolutionRequested for market ${marketId}`);
   //resolveMarket(runtime, marketId);
   return "Only logging for now, resolution logic is commented out for testing";
 };
+*/
 
 const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload): string => {
   const inputStr = new TextDecoder().decode(payload.input);
@@ -138,20 +121,12 @@ const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload): string =
 // ─── Workflow wiring ──────────────────────────────────────────────────────────
 
 function initWorkflow(config: Config) {
-  const evm = config.evms[0];
-  const evmClient = resolveEvmClient(evm);
-  const marketAddr = evm.market_address as Address;
+  //const evm = config.evms[0];
+  //const evmClient = resolveEvmClient(evm);
+  //const marketAddr = evm.market_address as Address;
 
-  // ── Trigger 1: EVM Log Trigger ──────────────────────────────────────────
-  // Listens for ResolutionRequested(uint256,string) events on the market contract
-  const evmLogTrigger = evmClient.logTrigger({
-    addresses: [marketAddr],
-    //topics: [
-    //  { values: [RESOLUTION_REQUESTED_TOPIC] }, // topic0: event signature
-    //],
-  });
 
-  // ── Trigger 2: HTTP Trigger ─────────────────────────────────────────────
+  // ── Trigger: HTTP Trigger ─────────────────────────────────────────────
   const httpTrigger = new HTTPCapability().trigger({
     authorizedKeys: [
       {

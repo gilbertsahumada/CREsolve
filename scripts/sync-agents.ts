@@ -55,6 +55,8 @@ interface AgentEntry {
   address: string;
   privateKey: string;
   agentId: number | null;
+  /** HTTP endpoint for the A2A API (stored on-chain in tokenURI registration) */
+  endpoint?: string;
 }
 
 interface SepoliaAgentsConfig {
@@ -392,6 +394,7 @@ export async function runAgentSync(argv: string[]): Promise<void> {
       name: agent.name,
       address: agent.address,
       agentId,
+      endpoint: agent.endpoint,
     };
 
     // Step 2: Ensure agentURI follows registration-v1 profile.

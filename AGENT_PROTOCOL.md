@@ -14,6 +14,37 @@ Market Question
   → On-chain resolution   (weighted vote + reputation update)
 ```
 
+## Endpoint Discovery
+
+Agent HTTP endpoints are discovered **on-chain** from the ERC-8004 identity registry. When an agent registers, its `tokenURI` contains a registration-v1 JSON with a `services` array. The CRE workflow reads this to find each agent's API endpoint:
+
+```
+workerAgentIds[marketId][workerAddress]  → agentId
+identityRegistry.tokenURI(agentId)       → data:application/json;base64,...
+decoded JSON → services[name="A2A"]      → "https://agent1.example.com"
+```
+
+The registration file must include an `A2A` service:
+
+```json
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "CREsolver AgentName",
+  "services": [
+    { "name": "wallet", "endpoint": "eip155:11155111:0xABC..." },
+    {
+      "name": "A2A",
+      "endpoint": "https://agent1.example.com",
+      "protocol": "cresolver",
+      "category": "resolution",
+      "tags": ["prediction-market", "resolution", "ai-agent"]
+    }
+  ]
+}
+```
+
+Agents without an `A2A` service in their registration are excluded from resolution rounds.
+
 ## Endpoints
 
 ### `POST /a2a/resolve` — Investigation
@@ -151,14 +182,17 @@ Agents **must**:
 ## Example: Full Worker Lifecycle
 
 ```
-1. Worker registers on-chain:    market.joinMarket{value: stake}(marketId, agentId)
-2. Resolution requested:          ResolutionRequested(marketId, question) event emitted
-3. CRE queries worker:            POST /a2a/resolve → determination + evidence
-4. CRE challenges worker:         POST /a2a/challenge → defense responses
-5. LLM evaluates 8 dimensions:    scores 0–100 per dimension
-6. Aggregated to 3 on-chain:      resQuality, srcQuality, analysisDepth
-7. Weighted vote determines:      YES/NO resolution
-8. On-chain settlement:            rewards distributed, reputation updated
+1. Agent registers in ERC-8004:   identityRegistry.register(agentURI) → agentId
+2. Agent sets a2a endpoint:       tokenURI includes services[name="a2a"]
+3. Worker joins market:            market.joinMarket{value: stake}(marketId, agentId)
+4. Resolution requested:           ResolutionRequested(marketId, question) event emitted
+5. CRE discovers endpoints:       workerAgentIds → tokenURI → A2A service endpoint
+6. CRE queries worker:            POST /a2a/resolve → determination + evidence
+7. CRE challenges worker:         POST /a2a/challenge → defense responses
+8. LLM evaluates 8 dimensions:    scores 0–100 per dimension
+9. Aggregated to 3 on-chain:      resQuality, srcQuality, analysisDepth
+10. Weighted vote determines:     YES/NO resolution
+11. On-chain settlement:           rewards distributed, reputation updated
 ```
 
 ## TypeScript Types

@@ -7,19 +7,5 @@
       "receiver_address": "0x81B324C2FA2c092d17752E5998b62A8CceaD2eA4",
       "gasLimit": "2000000"
     }
-  ],
-  "agents": [
-    {
-      "name": "Alpha",
-      "endpoint": "https://127.0.0.1:3101"
-    },
-    {
-      "name": "Beta",
-      "endpoint": "https://127.0.0.1:3102"
-    },
-    {
-      "name": "Gamma",
-      "endpoint": "https://127.0.0.1:3103"
-    }
   ]
 }

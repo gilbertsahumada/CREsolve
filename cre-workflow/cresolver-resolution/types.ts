@@ -72,6 +72,18 @@ export interface WorkerEvaluation {
   analysisDepth: number;
 }
 
+export interface LLMWorkerScores {
+  workerAddress: string;
+  resolutionQuality: number;
+  sourceQuality: number;
+  analysisDepth: number;
+  reasoningClarity: number;
+  evidenceStrength: number;
+  biasAwareness: number;
+  timeliness: number;
+  collaboration: number;
+}
+
 export interface ResolutionResult {
   resolution: boolean;
   workers: string[];

@@ -45,6 +45,48 @@ forge verify-contract <RECEIVER_ADDRESS> CREReceiver \
 
 Replace `<MARKET_ADDRESS>`, `<RECEIVER_ADDRESS>`, etc. with your actual deployed addresses.
 
+## Create Test Markets
+
+Use `SetupTestMarket.s.sol` to spin up fresh markets on an existing deployment without re-deploying contracts. The script creates a market and has the 3 worker agents join it automatically.
+
+Prerequisites:
+- `DEPLOYER_KEY` funded with Sepolia ETH
+- `SEPOLIA_RPC` set
+- `MARKET_ADDRESS` set to the deployed `CREsolverMarket` address
+- Worker agents generated and synced (`yarn sepolia:wallets`, `yarn sepolia:sync`)
+
+Required env vars:
+| Variable | Description |
+|---|---|
+| `DEPLOYER_KEY` | Private key of the market creator |
+| `SEPOLIA_RPC` | Sepolia RPC endpoint |
+| `MARKET_ADDRESS` | Deployed CREsolverMarket address |
+
+Optional env vars (override defaults):
+| Variable | Default | Description |
+|---|---|---|
+| `QUESTION` | `"Will bitcoin reach 200k by end of 2026?"` | Market question |
+| `REWARD_ETH` | `0.01 ether` | Reward pool in wei |
+| `DURATION` | `7 days` | Market duration in seconds |
+| `STAKE_ETH` | `0.0005 ether` | Per-worker stake in wei |
+
+Command:
+
+```bash
+# From repo root:
+MARKET_ADDRESS=0x499B178A5152Fb658dDbA1622B9B29Bb88561863 yarn sepolia:market
+
+# Or with custom values:
+MARKET_ADDRESS=0x499B... QUESTION="Will ETH hit 10k?" REWARD_ETH=20000000000000000 yarn sepolia:market
+```
+
+After the script runs it prints the new market ID. Use that to trigger resolution:
+
+```bash
+# via HTTP trigger
+curl -X POST <WORKFLOW_URL> -d '{"market_id": <NEW_MARKET_ID>}'
+```
+
 ## Deployment Table
 
 | Name | Network | Address | Block | Tx |

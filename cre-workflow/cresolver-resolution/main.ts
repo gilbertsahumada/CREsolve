@@ -13,9 +13,9 @@ import { keccak256, toBytes, type Address } from "viem";
 
 import { ConfigSchema, type Config, type EvmConfig, type WorkerData, type ResolutionResult } from "./types";
 import { readMarketWorkers, readMarketQuestion, submitResolution } from "./evm";
-// AI agent functions — kept for future activation
-// import { queryAllAgents, challengeAllAgents } from "./agents";
-// import { evaluateWorkers, computeResolution } from "./evaluate";
+import { queryAllAgents, challengeAllAgents } from "./agents";
+import { evaluateWithLLM } from "./llm";
+import { computeResolution } from "./evaluate";
 
 // ─── Event signature for the EVM Log Trigger ─────────────────────────────────
 
@@ -92,8 +92,11 @@ function resolveMarket(
   runtime.log(`Market question: "${question.slice(0, 80)}"`);
   runtime.log(`Found ${workers.length} workers on-chain`);
 
-  // Step 2: Compute mock resolution (FUTURE: queryAllAgents + challengeAllAgents + evaluateWorkers)
-  const resolution = computeMockResolution(workers);
+  // Step 2: AI pipeline — query agents, challenge, evaluate with LLM, compute resolution
+  const determinations = queryAllAgents(runtime, workers, marketId, question);
+  const challengeResults = challengeAllAgents(runtime, workers, determinations);
+  const evaluations = evaluateWithLLM(runtime, question, determinations, challengeResults);
+  const resolution = computeResolution(determinations, evaluations, workers);
 
   // Step 3: Submit resolution on-chain via signed report
   submitResolution(runtime, evmClient, marketId, resolution);

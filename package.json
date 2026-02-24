@@ -15,6 +15,7 @@
     "sepolia:normalize": "./scripts/sepolia-normalize.sh",
     "sepolia:audit": "./scripts/sepolia-audit.sh",
     "sepolia:deploy": "./scripts/sepolia-deploy.sh",
+    "sepolia:market": "cd contracts && source .env && forge script script/SetupTestMarket.s.sol --rpc-url $SEPOLIA_RPC --broadcast -vvvv",
     "sepolia:verify": "./scripts/sepolia-verify.sh",
     "agent:test": "cd agent && yarn test",
     "scripts:typecheck": "cd scripts && npx tsc --noEmit",

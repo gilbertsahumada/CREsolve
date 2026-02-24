@@ -299,6 +299,78 @@ export function readMarketWorkers(
     throw new Error(`Market ${marketId} has no workers`);
   }
 
+  // ── Debug mode: use config endpoints instead of on-chain resolution ─────
+  const configAgents = runtime.config.agents;
+  const useConfigEndpoints =
+    configAgents !== undefined && configAgents.length === workerAddresses.length;
+
+  if (useConfigEndpoints) {
+    runtime.log("Using config endpoints (debug mode)");
+
+    // Batch 2 (debug): only stake + reputation per worker (no workerAgentIds)
+    // Layout: [stake_0, rep_0, stake_1, rep_1, ...]
+    const batch2Calls: MulticallCall[] = [];
+    for (const addr of workerAddresses) {
+      batch2Calls.push({
+        target: marketAddr,
+        allowFailure: false,
+        callData: encodeFunctionData({
+          abi: stakesAbi,
+          functionName: "stakes",
+          args: [BigInt(marketId), addr],
+        }),
+      });
+      batch2Calls.push({
+        target: marketAddr,
+        allowFailure: false,
+        callData: encodeFunctionData({
+          abi: getReputationAbi,
+          functionName: "getReputation",
+          args: [addr],
+        }),
+      });
+    }
+
+    const batch2 = multicall3(runtime, evmClient, batch2Calls);
+    const workers: WorkerData[] = [];
+
+    for (let i = 0; i < workerAddresses.length; i++) {
+      const base = i * 2;
+
+      const stake = decodeFunctionResult({
+        abi: stakesAbi,
+        functionName: "stakes",
+        data: batch2[base].returnData,
+      }) as bigint;
+
+      const rep = decodeFunctionResult({
+        abi: getReputationAbi,
+        functionName: "getReputation",
+        data: batch2[base + 1].returnData,
+      }) as readonly [bigint, bigint, bigint, bigint];
+
+      workers.push({
+        address: workerAddresses[i],
+        endpoint: configAgents[i].endpoint,
+        stake,
+        reputation: {
+          resQuality: Number(rep[0]),
+          srcQuality: Number(rep[1]),
+          analysisDepth: Number(rep[2]),
+          count: Number(rep[3]),
+        },
+      });
+    }
+
+    runtime.log(
+      `Read ${workers.length} workers for market ${marketId}: "${market.question.slice(0, 60)}..."`,
+    );
+    return workers;
+  }
+
+  // ── On-chain flow: resolve endpoints from identity registry ─────────────
+  runtime.log("Resolving endpoints from on-chain identity registry");
+
   // ── Batch 2: per-worker agentId + stake + reputation ────────────────────
   // Layout: [agentId_0, stake_0, rep_0, agentId_1, stake_1, rep_1, ...]
   const batch2Calls: MulticallCall[] = [];

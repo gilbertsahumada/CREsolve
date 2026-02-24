@@ -12,9 +12,15 @@ const EvmConfigSchema = z.object({
   gasLimit: z.string(),
 });
 
+const AgentConfigSchema = z.object({
+  name: z.string(),
+  endpoint: z.string().regex(/^https?:\/\/.+/),
+});
+
 export const ConfigSchema = z.object({
   authorizedEVMAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
   evms: z.array(EvmConfigSchema).min(1),
+  agents: z.array(AgentConfigSchema).optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

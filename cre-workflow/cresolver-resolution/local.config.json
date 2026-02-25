@@ -11,5 +11,6 @@
     { "name": "Alpha", "endpoint": "http://127.0.0.1:3101" },
     { "name": "Beta",  "endpoint": "http://127.0.0.1:3102" },
     { "name": "Gamma", "endpoint": "http://127.0.0.1:3103" }
-  ]
+  ],
+  "mockAgentResponses": true
 }

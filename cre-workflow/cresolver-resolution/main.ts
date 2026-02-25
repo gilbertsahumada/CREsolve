@@ -16,6 +16,8 @@ import { readMarketWorkers, readMarketQuestion, submitResolution } from "./chain
 import { queryAllAgents, challengeAllAgents } from "./agents/query";
 import { evaluateWithLLM } from "./agents/llm";
 import { computeResolution } from "./resolution/evaluate";
+import { validateEndpoints } from "./agents/validate";
+import { generateMockDeterminations, generateMockChallengeResults } from "./agents/mock";
 
 // ─── Event signature for the EVM Log Trigger ─────────────────────────────────
 
@@ -64,21 +66,49 @@ function resolveMarket(
 ): void {
   const evm = runtime.config.evms[0];
   const evmClient = resolveEvmClient(evm);
+  const useMock = runtime.config.mockAgentResponses === true;
 
   runtime.log(`Starting resolution for market ${marketId}`);
 
   // Step 1: Read market data and worker info from chain
   const question = readMarketQuestion(runtime, evmClient, marketId);
-  const workers = readMarketWorkers(runtime, evmClient, marketId);
+  const { workers, report } = readMarketWorkers(runtime, evmClient, marketId);
 
   runtime.log(`Market question: "${question.slice(0, 80)}"`);
-  runtime.log(`Found ${workers.length} workers on-chain`);
+  runtime.log(
+    `Discovery: ${report.totalOnChain} on-chain, ${report.validWorkers} valid, ${report.discarded.length} discarded`,
+  );
 
-  // Step 2: AI pipeline — query agents, challenge, evaluate with LLM, compute resolution
-  const determinations = queryAllAgents(runtime, workers, marketId, question);
-  const challengeResults = challengeAllAgents(runtime, workers, determinations);
+  // Step 2: AI pipeline — query agents (or mock), challenge, evaluate with LLM
+  let determinations;
+  let challengeResults;
+  let activeWorkers = workers;
+
+  if (useMock) {
+    runtime.log("Mock mode: generating synthetic agent responses");
+    determinations = generateMockDeterminations(workers, marketId, question);
+    challengeResults = generateMockChallengeResults(workers, determinations);
+  } else {
+    // Validate endpoints before querying
+    const validation = validateEndpoints(runtime, workers);
+    activeWorkers = validation.reachable;
+
+    // Merge unreachable into discovery report
+    for (const u of validation.unreachable) {
+      report.discarded.push(u);
+    }
+    report.validWorkers = activeWorkers.length;
+
+    if (activeWorkers.length === 0) {
+      throw new Error("No reachable workers after endpoint validation");
+    }
+
+    determinations = queryAllAgents(runtime, activeWorkers, marketId, question);
+    challengeResults = challengeAllAgents(runtime, activeWorkers, determinations);
+  }
+
   const evaluations = evaluateWithLLM(runtime, question, determinations, challengeResults);
-  const resolution = computeResolution(determinations, evaluations, workers);
+  const resolution = computeResolution(determinations, evaluations, activeWorkers);
 
   // Step 3: Submit resolution on-chain via signed report
   submitResolution(runtime, evmClient, marketId, resolution);

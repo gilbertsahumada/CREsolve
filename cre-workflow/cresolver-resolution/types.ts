@@ -21,6 +21,7 @@ export const ConfigSchema = z.object({
   authorizedEVMAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
   evms: z.array(EvmConfigSchema).min(1),
   agents: z.array(AgentConfigSchema).optional(),
+  mockAgentResponses: z.boolean().optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -88,4 +89,30 @@ export interface ResolutionResult {
   workers: string[];
   weights: bigint[];
   dimScores: number[];
+}
+
+// ─── Worker discovery tracking ──────────────────────────────────────────────
+
+export type DiscardReason =
+  | "tokenURI_call_failed"
+  | "invalid_metadata"
+  | "no_a2a_endpoint"
+  | "endpoint_unreachable";
+
+export interface DiscardedWorker {
+  address: string;
+  agentId?: bigint;
+  reason: DiscardReason;
+  detail: string;
+}
+
+export interface DiscoveryReport {
+  totalOnChain: number;
+  validWorkers: number;
+  discarded: DiscardedWorker[];
+}
+
+export interface WorkerDiscoveryResult {
+  workers: WorkerData[];
+  report: DiscoveryReport;
 }

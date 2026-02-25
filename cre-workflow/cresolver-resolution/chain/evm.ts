@@ -14,7 +14,7 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import type { Config, WorkerData, ResolutionResult } from "../types.js";
+import type { Config, WorkerData, ResolutionResult, DiscardedWorker, WorkerDiscoveryResult } from "../types.js";
 
 // ─── ABI fragments for viem encoding ────────────────────────────────────────
 
@@ -200,10 +200,14 @@ interface RegistrationService {
   endpoint: string;
 }
 
-function parseA2aEndpoint(dataUri: string): string | null {
+type ParseResult =
+  | { ok: true; endpoint: string }
+  | { ok: false; reason: "invalid_metadata" | "no_a2a_endpoint"; detail: string };
+
+function parseA2aEndpoint(dataUri: string): ParseResult {
   const prefix = "data:application/json;base64,";
   if (!dataUri.startsWith(prefix)) {
-    return null;
+    return { ok: false, reason: "invalid_metadata", detail: "tokenURI is not a data:application/json;base64 URI" };
   }
 
   try {
@@ -213,17 +217,21 @@ function parseA2aEndpoint(dataUri: string): string | null {
     };
 
     if (!Array.isArray(registration.services)) {
-      return null;
+      return { ok: false, reason: "invalid_metadata", detail: "metadata missing services array" };
     }
 
-    // Match "A2A" service name (case-insensitive to be robust)
     const a2aService = registration.services.find(
       (s) =>
         s.name.toUpperCase() === "A2A" && typeof s.endpoint === "string",
     );
-    return a2aService?.endpoint ?? null;
+
+    if (!a2aService) {
+      return { ok: false, reason: "no_a2a_endpoint", detail: "no A2A service found in services array" };
+    }
+
+    return { ok: true, endpoint: a2aService.endpoint };
   } catch {
-    return null;
+    return { ok: false, reason: "invalid_metadata", detail: "failed to parse tokenURI JSON" };
   }
 }
 
@@ -233,7 +241,7 @@ export function readMarketWorkers(
   runtime: Runtime<Config>,
   evmClient: EVMClient,
   marketId: number,
-): WorkerData[] {
+): WorkerDiscoveryResult {
   const evm = runtime.config.evms[0];
   const marketAddr = evm.market_address as Address;
 
@@ -365,7 +373,14 @@ export function readMarketWorkers(
     runtime.log(
       `Read ${workers.length} workers for market ${marketId}: "${market.question.slice(0, 60)}..."`,
     );
-    return workers;
+    return {
+      workers,
+      report: {
+        totalOnChain: workerAddresses.length,
+        validWorkers: workers.length,
+        discarded: [],
+      },
+    };
   }
 
   // ── On-chain flow: resolve endpoints from identity registry ─────────────
@@ -454,6 +469,7 @@ export function readMarketWorkers(
 
   // ── Assemble WorkerData from all batches ────────────────────────────────
   const workers: WorkerData[] = [];
+  const discarded: DiscardedWorker[] = [];
 
   for (let i = 0; i < workerAddresses.length; i++) {
     const addr = workerAddresses[i];
@@ -462,6 +478,12 @@ export function readMarketWorkers(
       runtime.log(
         `Worker ${addr.slice(0, 10)}... (agentId=${agentIds[i]}): tokenURI call failed, skipping`,
       );
+      discarded.push({
+        address: addr,
+        agentId: agentIds[i],
+        reason: "tokenURI_call_failed",
+        detail: `tokenURI call reverted for agentId=${agentIds[i]}`,
+      });
       continue;
     }
 
@@ -471,18 +493,24 @@ export function readMarketWorkers(
       data: batch3[i].returnData,
     }) as string;
 
-    const endpoint = parseA2aEndpoint(tokenURI);
-    if (!endpoint) {
+    const parseResult = parseA2aEndpoint(tokenURI);
+    if (!parseResult.ok) {
       runtime.log(
-        `Worker ${addr.slice(0, 10)}... (agentId=${agentIds[i]}): no A2A service in tokenURI, skipping`,
+        `Worker ${addr.slice(0, 10)}... (agentId=${agentIds[i]}): ${parseResult.detail}, skipping`,
       );
+      discarded.push({
+        address: addr,
+        agentId: agentIds[i],
+        reason: parseResult.reason,
+        detail: parseResult.detail,
+      });
       continue;
     }
 
     const rep = reputations[i];
     workers.push({
       address: addr,
-      endpoint,
+      endpoint: parseResult.endpoint,
       stake: stakes[i],
       reputation: {
         resQuality: Number(rep[0]),
@@ -496,8 +524,18 @@ export function readMarketWorkers(
   runtime.log(
     `Read ${workers.length} workers for market ${marketId}: "${market.question.slice(0, 60)}..."`,
   );
+  if (discarded.length > 0) {
+    runtime.log(`Discarded ${discarded.length} workers during discovery`);
+  }
 
-  return workers;
+  return {
+    workers,
+    report: {
+      totalOnChain: workerAddresses.length,
+      validWorkers: workers.length,
+      discarded,
+    },
+  };
 }
 
 // ─── Get market question ─────────────────────────────────────────────────────

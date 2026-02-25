@@ -287,6 +287,10 @@ export function readMarketWorkers(
     resolved: boolean;
   };
 
+  if (market.deadline === 0n) {
+    throw new Error(`Market ${marketId} does not exist`);
+  }
+
   if (market.resolved) {
     throw new Error(`Market ${marketId} is already resolved`);
   }
@@ -567,7 +571,15 @@ export function readMarketQuestion(
     abi: getMarketAbi,
     functionName: "getMarket",
     data: bytesToHex(result.data),
-  }) as unknown as { question: string };
+  }) as unknown as { question: string; deadline: bigint; resolved: boolean };
+
+  if (decoded.deadline === 0n) {
+    throw new Error(`Market ${marketId} does not exist`);
+  }
+
+  if (decoded.resolved) {
+    throw new Error(`Market ${marketId} is already resolved`);
+  }
 
   return decoded.question;
 }

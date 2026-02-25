@@ -3,7 +3,7 @@ import {
   challengeRequestSchema,
   resolveRequestSchema,
 } from "../validation.js";
-import type { AgentBindings } from "../config.js";
+import type { AgentBindings } from "../config";
 import { getConfig } from "../config.js";
 import { investigate } from "../services/investigator.js";
 import { defend } from "../services/defender.js";

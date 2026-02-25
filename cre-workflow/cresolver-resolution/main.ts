@@ -11,7 +11,7 @@ import {
 } from "@chainlink/cre-sdk";
 import { keccak256, toBytes, type Address } from "viem";
 
-import { ConfigSchema, type Config, type EvmConfig } from "./types";
+import { ConfigSchema, type Config, type EvmConfig, type DiscoveryReport } from "./types";
 import { readMarketWorkers, readMarketQuestion, submitResolution } from "./chain/evm";
 import { queryAllAgents, challengeAllAgents } from "./agents/query";
 import { evaluateWithLLM } from "./agents/llm";
@@ -58,6 +58,44 @@ function marketIdFromLog(log: EVMLog): number {
 }
 */
 
+// ─── Discovery report logging ────────────────────────────────────────────────
+
+function logDiscoveryReport(
+  runtime: Runtime<Config>,
+  report: DiscoveryReport,
+): void {
+  runtime.log("── Discovery Report ──────────────────────────────");
+  runtime.log(`  Total on-chain:  ${report.totalOnChain}`);
+  runtime.log(`  Valid workers:   ${report.validWorkers}`);
+  runtime.log(`  Discarded:       ${report.discarded.length}`);
+
+  if (report.discarded.length === 0) {
+    runtime.log("  (no workers discarded)");
+    runtime.log("──────────────────────────────────────────────────");
+    return;
+  }
+
+  // Group by reason for a clean summary
+  const byReason = new Map<string, number>();
+  for (const d of report.discarded) {
+    byReason.set(d.reason, (byReason.get(d.reason) ?? 0) + 1);
+  }
+
+  runtime.log("  Breakdown by reason:");
+  for (const [reason, count] of byReason) {
+    runtime.log(`    ${reason}: ${count}`);
+  }
+
+  // Per-worker detail
+  runtime.log("  Details:");
+  for (const d of report.discarded) {
+    const addr = d.address.slice(0, 10) + "...";
+    const agentTag = d.agentId !== undefined ? ` agentId=${d.agentId}` : "";
+    runtime.log(`    ${addr}${agentTag} [${d.reason}] ${d.detail}`);
+  }
+  runtime.log("──────────────────────────────────────────────────");
+}
+
 // ─── Core resolution logic (shared by both triggers) ─────────────────────────
 
 function resolveMarket(
@@ -75,9 +113,6 @@ function resolveMarket(
   const { workers, report } = readMarketWorkers(runtime, evmClient, marketId);
 
   runtime.log(`Market question: "${question.slice(0, 80)}"`);
-  runtime.log(
-    `Discovery: ${report.totalOnChain} on-chain, ${report.validWorkers} valid, ${report.discarded.length} discarded`,
-  );
 
   // Step 2: AI pipeline — query agents (or mock), challenge, evaluate with LLM
   let determinations;
@@ -85,6 +120,7 @@ function resolveMarket(
   let activeWorkers = workers;
 
   if (useMock) {
+    logDiscoveryReport(runtime, report);
     runtime.log("Mock mode: generating synthetic agent responses");
     determinations = generateMockDeterminations(workers, marketId, question);
     challengeResults = generateMockChallengeResults(workers, determinations);
@@ -98,6 +134,8 @@ function resolveMarket(
       report.discarded.push(u);
     }
     report.validWorkers = activeWorkers.length;
+
+    logDiscoveryReport(runtime, report);
 
     if (activeWorkers.length === 0) {
       throw new Error("No reachable workers after endpoint validation");

@@ -5,4 +5,5 @@ workers_dev = true
 
 [vars]
 AGENT_NAME = "Worker"
-LLM_MODEL = "gpt-4o-mini"
+LLM_MODEL = "moonshotai/kimi-k2.5"
+LLM_BASE_URL = "https://integrate.api.nvidia.com/v1"

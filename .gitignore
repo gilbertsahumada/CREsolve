@@ -19,6 +19,11 @@ contracts/broadcast/
 !.env.example
 !contracts/.env.example
 
+# Cloudflare Worker secrets & config
+agent-cloudflare/.dev.vars
+agent-cloudflare/.wrangler/
+!agent-cloudflare/.dev.vars.example
+
 # Generated config
 scripts/demo-config.json
 scripts/sepolia-agents.json

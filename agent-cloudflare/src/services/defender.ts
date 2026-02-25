@@ -52,26 +52,33 @@ function mockDefend(challenges: string[]): string[] {
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
 
+/** Strip markdown fences that the model may wrap around JSON output. */
+function cleanJsonContent(raw: string): string {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/);
+  return fenced ? fenced[1].trim() : trimmed;
+}
+
 async function llmDefend(
   challenges: string[],
   config: AgentConfig,
 ): Promise<string[]> {
-  const openai = new OpenAI({ apiKey: config.llmApiKey });
+  const openai = new OpenAI({ apiKey: config.llmApiKey, baseURL: config.llmBaseUrl });
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const completion = await openai.chat.completions.create({
         model: config.llmModel,
         temperature: 0,
-        seed: 42,
-        response_format: { type: "json_object" },
+        stream: false,
+        max_tokens: 4096,
         messages: [
           {
             role: "system",
             content: `You are defending your previous research determination against challenges.
 Respond to each challenge with a well-reasoned defense.
 
-Respond with a JSON object:
+Return ONLY raw JSON, no markdown fences, no extra text:
 { "responses": ["response to challenge 1", "response to challenge 2", ...] }
 
 Be thorough but concise. Address each challenge directly.`,
@@ -88,7 +95,7 @@ Be thorough but concise. Address each challenge directly.`,
       const content = completion.choices[0]?.message?.content;
       if (!content) throw new Error("Empty LLM response");
 
-      const parsed = JSON.parse(content);
+      const parsed = JSON.parse(cleanJsonContent(content));
       return Array.isArray(parsed.responses)
         ? parsed.responses.map(String)
         : challenges.map(() => "Unable to parse defense response.");

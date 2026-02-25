@@ -1,0 +1,8 @@
+# Cloudflare Worker local dev secrets
+# Copy this file to .dev.vars and fill in real values
+# These are injected as environment variables during `wrangler dev`
+
+# NVIDIA API key for LLM-powered agent responses (Kimi K2.5)
+# Get one free at https://build.nvidia.com
+# If left empty, the agent runs in mock mode with deterministic responses
+LLM_API_KEY=your-nvidia-api-key-here

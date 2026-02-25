@@ -98,26 +98,33 @@ function mockInvestigate(question: string): ResolveResponse {
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
 
+/** Strip markdown fences that the model may wrap around JSON output. */
+function cleanJsonContent(raw: string): string {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/);
+  return fenced ? fenced[1].trim() : trimmed;
+}
+
 async function llmInvestigate(
   question: string,
   config: AgentConfig,
 ): Promise<ResolveResponse> {
-  const openai = new OpenAI({ apiKey: config.llmApiKey });
+  const openai = new OpenAI({ apiKey: config.llmApiKey, baseURL: config.llmBaseUrl });
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const completion = await openai.chat.completions.create({
         model: config.llmModel,
         temperature: 0,
-        seed: 42,
-        response_format: { type: "json_object" },
+        stream: false,
+        max_tokens: 4096,
         messages: [
           {
             role: "system",
             content: `You are a research investigator for a prediction market resolution system.
 Your job is to determine whether a given question/claim is TRUE or FALSE based on available evidence.
 
-Respond with a JSON object:
+Return ONLY raw JSON, no markdown fences, no extra text:
 {
   "determination": boolean,
   "confidence": number (0-1),
@@ -137,7 +144,7 @@ Be thorough but concise. Base your determination on facts and evidence.`,
       const content = completion.choices[0]?.message?.content;
       if (!content) throw new Error("Empty LLM response");
 
-      const parsed = JSON.parse(content);
+      const parsed = JSON.parse(cleanJsonContent(content));
       return {
         determination: Boolean(parsed.determination),
         confidence: Math.max(0, Math.min(1, Number(parsed.confidence))),

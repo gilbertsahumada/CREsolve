@@ -14,6 +14,14 @@ staging-settings:
     config-path: "./config.staging.json"
     secrets-path: "../secrets.yaml"
 
+sepolia-mock:
+  user-workflow:
+    workflow-name: "cresolver-resolution-sepolia-mock"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.sepolia-mock.json"
+    secrets-path: "../secrets.yaml"
+
 production-settings:
   user-workflow:
     workflow-name: "cresolver-resolution-production"

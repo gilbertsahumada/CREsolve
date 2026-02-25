@@ -17,3 +17,9 @@ staging-settings:
     - chain-name: ethereum-testnet-sepolia
       url: "https://ethereum-sepolia-rpc.publicnode.com"
   description: "Sepolia testnet staging environment"
+
+sepolia-mock:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: "https://ethereum-sepolia-rpc.publicnode.com"
+  description: "Sepolia testnet with mock/configurable agent responses"

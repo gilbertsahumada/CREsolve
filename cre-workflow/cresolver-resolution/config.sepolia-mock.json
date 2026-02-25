@@ -9,9 +9,9 @@
     }
   ],
   "agents": [
-    { "name": "Alpha", "endpoint": "http://placeholder:3101" },
-    { "name": "Beta",  "endpoint": "http://placeholder:3102" },
-    { "name": "Gamma", "endpoint": "http://placeholder:3103" }
+    { "name": "Alpha", "endpoint": "http://localhost:8787" },
+    { "name": "Beta",  "endpoint": "http://localhost:8787" },
+    { "name": "Gamma", "endpoint": "http://localhost:8787" }
   ],
   "mockAgentResponses": true
 }

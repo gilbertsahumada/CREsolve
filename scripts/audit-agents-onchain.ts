@@ -36,6 +36,7 @@ interface AgentEntry {
   address: string;
   privateKey: string;
   agentId: number | null;
+  endpoint?: string;
 }
 
 interface SepoliaAgentsConfig {
@@ -253,6 +254,7 @@ async function main(): Promise<void> {
         name: agent.name,
         address: agent.address,
         agentId,
+        endpoint: agent.endpoint,
       };
       const expectedDataUri = buildAgentDataUri(profileAgent, profileContext);
       const expectedRegistration = decodeRegistrationFromDataUri(expectedDataUri);
@@ -267,6 +269,21 @@ async function main(): Promise<void> {
         console.log("registration-v1 template: ERROR (on-chain tokenURI drift)");
       } else {
         console.log("registration-v1 template: OK");
+      }
+
+      // Check A2A endpoint in on-chain registration
+      const services = registration.services;
+      if (Array.isArray(services)) {
+        const a2aService = services.find(
+          (s) => s && typeof s === "object" && (s as { name?: unknown }).name === "A2A",
+        ) as { endpoint?: string } | undefined;
+        if (a2aService?.endpoint) {
+          console.log(`A2A endpoint: ${a2aService.endpoint}`);
+        } else {
+          console.log("A2A endpoint: NOT CONFIGURED");
+        }
+      } else {
+        console.log("A2A endpoint: NOT CONFIGURED (no services)");
       }
     }
 

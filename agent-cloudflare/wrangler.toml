@@ -1,0 +1,8 @@
+name = "cresolver-agent"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+[vars]
+AGENT_NAME = "Worker"
+LLM_MODEL = "gpt-4o-mini"

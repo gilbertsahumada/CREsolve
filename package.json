@@ -18,6 +18,9 @@
     "sepolia:market": "cd contracts && source .env && forge script script/SetupTestMarket.s.sol --rpc-url $SEPOLIA_RPC --broadcast -vvvv",
     "sepolia:verify": "./scripts/sepolia-verify.sh",
     "agent:test": "cd agent && yarn test",
+    "agent:cf:test": "cd agent-cloudflare && yarn test",
+    "agent:cf:dev": "cd agent-cloudflare && yarn dev",
+    "agent:cf:deploy": "cd agent-cloudflare && yarn deploy",
     "scripts:typecheck": "cd scripts && npx tsc --noEmit",
     "e2e:typecheck": "cd e2e && npx tsc --noEmit",
     "workflow:typecheck": "cd cre-workflow/cresolver-resolution && npx tsc --noEmit"

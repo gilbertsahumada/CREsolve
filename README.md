@@ -27,6 +27,7 @@ CRE workflows orchestrate multiple AI agents to investigate market questions, ch
 |-----------|-------------|
 | `contracts/` | Solidity (Foundry) — `CREsolverMarket`, `CREReceiver`, `ReceiverTemplate` |
 | `agent/` | TypeScript/Hono worker agent with mock + LLM (OpenAI) modes |
+| `agent-cloudflare/` | Cloudflare Worker version of the A2A agent |
 | `cre-workflow/` | CRE resolution workflow (TypeScript SDK, compiles to WASM for DON) |
 | `e2e/` | End-to-end test suite (Docker Compose + Anvil + Vitest) |
 | `scripts/` | Automation — setup, deploy, registration, verification |
@@ -64,6 +65,7 @@ yarn sepolia:verify
 # 1. Clone and install dependencies
 git clone <repo-url> && cd cresolver
 cd agent && yarn install && cd ..
+cd agent-cloudflare && yarn install && cd ..
 cd scripts && yarn install && cd ..
 cd e2e && yarn install && cd ..
 cd cre-workflow && yarn install && cd ..
@@ -101,6 +103,20 @@ yarn test
 ```
 
 Unit tests for the worker agent covering health checks, resolve/challenge endpoints, and validation.
+
+### Cloudflare Agent Tests
+
+```bash
+cd agent-cloudflare
+yarn test
+```
+
+To run it locally with Wrangler:
+
+```bash
+cd agent-cloudflare
+yarn dev
+```
 
 ### E2E Tests (Docker + Vitest)
 
@@ -242,6 +258,21 @@ cresolver/
 │   ├── src/
 │   │   ├── index.ts             # Hono server entry
 │   │   ├── config.ts            # Environment config
+│   │   ├── validation.ts        # Zod schemas
+│   │   ├── routes/
+│   │   │   ├── health.ts        # GET /health
+│   │   │   └── a2a.ts           # POST /a2a/resolve, /a2a/challenge
+│   │   └── services/
+│   │       ├── investigator.ts  # Mock + LLM investigation
+│   │       └── defender.ts      # Challenge defense
+│   └── tests/
+│       └── agent.test.ts
+│
+├── agent-cloudflare/            # Worker agent (Cloudflare Worker)
+│   ├── wrangler.toml
+│   ├── src/
+│   │   ├── index.ts             # Worker entry (fetch handler)
+│   │   ├── config.ts            # Cloudflare bindings config
 │   │   ├── validation.ts        # Zod schemas
 │   │   ├── routes/
 │   │   │   ├── health.ts        # GET /health

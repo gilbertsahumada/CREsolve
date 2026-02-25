@@ -60,7 +60,7 @@ Score each worker on these 8 dimensions (0-100 each):
 7. timeliness: Recency of sources, use of current data
 8. collaboration: Quality of challenge responses, depth of engagement
 
-Return ONLY valid JSON with this exact structure:
+Return ONLY raw JSON, no markdown fences, no extra text. Use this exact structure:
 {
   "workers": [
     {
@@ -122,6 +122,13 @@ interface LLMResponse {
   workers: LLMWorkerScores[];
 }
 
+/** Strip markdown fences that the model may wrap around JSON output. */
+function cleanJsonContent(raw: string): string {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/);
+  return fenced ? fenced[1].trim() : trimmed;
+}
+
 function clamp(value: number, min = 0, max = 100): number {
   return Math.max(min, Math.min(max, Math.round(value)));
 }
@@ -136,27 +143,27 @@ export function evaluateWithLLM(
   const userPrompt = buildUserPrompt(question, determinations, challengeResults);
 
   const body = JSON.stringify({
-    model: "gpt-4o-mini",
+    model: "moonshotai/kimi-k2.5",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
     temperature: 0,
-    seed: 42,
-    response_format: { type: "json_object" },
+    stream: false,
+    max_tokens: 16384,
   });
 
-  runtime.log("Calling OpenAI for LLM evaluation...");
+  runtime.log("Calling NVIDIA/Kimi for LLM evaluation...");
 
   const response = confidentialClient
     .sendRequest(runtime, {
-      vaultDonSecrets: [{ key: "OPENAI_API_KEY", namespace: "cresolver" }],
+      vaultDonSecrets: [{ key: "NVIDIA_API_KEY", namespace: "cresolver" }],
       request: {
-        url: "https://api.openai.com/v1/chat/completions",
+        url: "https://integrate.api.nvidia.com/v1/chat/completions",
         method: "POST",
         multiHeaders: {
           "Content-Type": { values: ["application/json"] },
-          Authorization: { values: ["Bearer {{OPENAI_API_KEY}}"] },
+          Authorization: { values: ["Bearer {{NVIDIA_API_KEY}}"] },
         },
         bodyString: body,
       },
@@ -165,7 +172,7 @@ export function evaluateWithLLM(
 
   if (!ok(response)) {
     throw new Error(
-      `OpenAI API request failed with status ${response.statusCode}`,
+      `NVIDIA API request failed with status ${response.statusCode}`,
     );
   }
 
@@ -175,14 +182,16 @@ export function evaluateWithLLM(
 
   const content = data.choices?.[0]?.message?.content;
   if (!content) {
-    throw new Error("OpenAI returned empty response");
+    throw new Error("NVIDIA/Kimi returned empty response");
   }
+
+  const cleaned = cleanJsonContent(content);
 
   let parsed: LLMResponse;
   try {
-    parsed = JSON.parse(content) as LLMResponse;
+    parsed = JSON.parse(cleaned) as LLMResponse;
   } catch {
-    throw new Error(`Failed to parse LLM JSON response: ${content.slice(0, 200)}`);
+    throw new Error(`Failed to parse LLM JSON response: ${cleaned.slice(0, 200)}`);
   }
 
   if (!parsed.workers || !Array.isArray(parsed.workers)) {

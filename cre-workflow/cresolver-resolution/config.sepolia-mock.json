@@ -1,0 +1,17 @@
+{
+  "authorizedEVMAddress": "0x5ee75a1B1648C023e885E58bD3735Ae273f2cc52",
+  "evms": [
+    {
+      "chainSelectorName": "ethereum-testnet-sepolia",
+      "market_address": "0x499B178A5152Fb658dDbA1622B9B29Bb88561863",
+      "receiver_address": "0x81B324C2FA2c092d17752E5998b62A8CceaD2eA4",
+      "gasLimit": "2000000"
+    }
+  ],
+  "agents": [
+    { "name": "Alpha", "endpoint": "http://placeholder:3101" },
+    { "name": "Beta",  "endpoint": "http://placeholder:3102" },
+    { "name": "Gamma", "endpoint": "http://placeholder:3103" }
+  ],
+  "mockAgentResponses": true
+}

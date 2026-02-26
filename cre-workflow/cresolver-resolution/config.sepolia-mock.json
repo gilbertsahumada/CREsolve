@@ -13,5 +13,5 @@
     { "name": "Beta",  "endpoint": "http://localhost:8787" },
     { "name": "Gamma", "endpoint": "http://localhost:8787" }
   ],
-  "mockAgentResponses": true
+  "mockAgentResponses": false
 }

@@ -14,6 +14,7 @@ import type {
   ChallengeResult,
 } from "../types";
 import { generateChallenges } from "../resolution/evaluate";
+import { bftQuorum } from "../resolution/quorum";
 
 const httpClient = new HTTPClient();
 
@@ -53,7 +54,7 @@ export function queryAllAgents(
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: toBase64(bodyStr),
-              timeout: "30s",
+              timeout: "60s",
               cacheSettings: { store: true, maxAge: "600s" },
             })
             .result();
@@ -86,23 +87,33 @@ export function queryAllAgents(
     }
   }
 
+  // BFT quorum check — require ⌈2n/3⌉ responses (see resolution/quorum.ts)
+  const quorum = bftQuorum(workers.length);
+
   if (determinations.length === 0) {
     throw new Error("No workers responded successfully");
   }
-  if (determinations.length !== workers.length) {
+
+  if (determinations.length < quorum) {
+    throw new Error(
+      `BFT quorum not met: ${determinations.length}/${workers.length} responded (need ${quorum})`,
+    );
+  }
+
+  if (determinations.length < workers.length) {
     const responded = new Set(
       determinations.map((d) => d.workerAddress.toLowerCase()),
     );
     const missing = workers
       .filter((w) => !responded.has(w.address.toLowerCase()))
-      .map((w) => w.address);
-    throw new Error(
-      `Missing determinations from ${missing.length} worker(s): ${missing.join(", ")}`,
+      .map((w) => w.address.slice(0, 10) + "...");
+    runtime.log(
+      `BFT quorum met with ${determinations.length}/${workers.length} (need ${quorum}). Missing: ${missing.join(", ")}`,
     );
   }
 
   runtime.log(
-    `${determinations.length}/${workers.length} workers responded`,
+    `${determinations.length}/${workers.length} workers responded (quorum: ${quorum})`,
   );
   return determinations;
 }

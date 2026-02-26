@@ -5,5 +5,5 @@ workers_dev = true
 
 [vars]
 AGENT_NAME = "Worker"
-LLM_MODEL = "moonshotai/kimi-k2.5"
+LLM_MODEL = "meta/llama-3.3-70b-instruct"
 LLM_BASE_URL = "https://integrate.api.nvidia.com/v1"

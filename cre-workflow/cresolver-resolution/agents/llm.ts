@@ -143,7 +143,7 @@ export function evaluateWithLLM(
   const userPrompt = buildUserPrompt(question, determinations, challengeResults);
 
   const body = JSON.stringify({
-    model: "moonshotai/kimi-k2.5",
+    model: "meta/llama-3.3-70b-instruct",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },

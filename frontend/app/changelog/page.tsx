@@ -9,6 +9,30 @@ interface ChangelogEntry {
 
 const entries: ChangelogEntry[] = [
   {
+    date: "2026-02-27",
+    version: "v0.3.0",
+    title: "UI Overhaul & Wallet Connection",
+    description: "Redesigned the prediction market cards for better UX and added Web3 wallet connection support for the Sepolia network.",
+    type: "feature",
+    highlights: [
+      "Added Web3 wallet connection (MetaMask support)",
+      "Redesigned MarketCard with probability bars",
+      "Improved grid layout for market list",
+      "Enhanced typography and contrast",
+    ],
+  },
+  {
+    date: "2026-02-27",
+    version: "v0.2.0",
+    title: "Prediction Market UI",
+    description: "Added Buy and Sell buttons to open markets to improve the prediction market experience.",
+    type: "feature",
+    highlights: [
+      "Added Buy and Sell buttons to open markets",
+      "Improved MarketCard layout",
+    ],
+  },
+  {
     date: "2026-02-26",
     version: "v0.1.0",
     title: "Dashboard Launch",

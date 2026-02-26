@@ -96,7 +96,8 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
             rewardPool: msg.value,
             deadline: block.timestamp + duration,
             creator: msg.sender,
-            resolved: false
+            resolved: false,
+            resolution: false
         });
 
         emit MarketCreated(
@@ -156,6 +157,7 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         _updateReputation(marketId, workers, dimScores);
 
         markets[marketId].resolved = true;
+        markets[marketId].resolution = resolution;
 
         emit MarketResolved(marketId, msg.sender, resolution);
     }
@@ -302,9 +304,6 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         Market storage m = markets[marketId];
         if (m.deadline == 0) revert MarketDoesNotExist(marketId);
         if (m.resolved) revert MarketAlreadyResolved(marketId);
-        if (m.creator != msg.sender && msg.sender != owner())
-            revert NotMarketCreator(marketId, msg.sender);
-
         emit ResolutionRequested(marketId, m.question);
     }
 

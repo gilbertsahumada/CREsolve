@@ -41,6 +41,7 @@ contract CREsolverMarketTest is Test {
         assertEq(m.deadline, block.timestamp + 1 days);
         assertEq(m.creator, address(this));
         assertFalse(m.resolved);
+        assertFalse(m.resolution);
         assertEq(market.marketCount(), 1);
     }
 
@@ -145,9 +146,10 @@ contract CREsolverMarketTest is Test {
         // worker2 gets 30% of 1 ether = 0.3 ether + 0.05 stake
         assertEq(market.balances(worker2), 0.3 ether + 0.05 ether);
 
-        // Market is resolved
+        // Market is resolved with correct outcome
         Market memory m = market.getMarket(id);
         assertTrue(m.resolved);
+        assertTrue(m.resolution);
     }
 
     function test_resolveMarket_returns_stakes() public {
@@ -450,12 +452,14 @@ contract CREsolverMarketTest is Test {
         market.requestResolution(id);
     }
 
-    function test_requestResolution_reverts_unauthorized_caller() public {
+    function test_requestResolution_open_to_anyone() public {
         market.createMarket{value: 1 ether}("Q?", 1 days);
 
+        // Anyone can request resolution — no access control
         address nobody = makeAddr("nobody");
         vm.prank(nobody);
-        vm.expectRevert(abi.encodeWithSelector(NotMarketCreator.selector, 0, nobody));
+        vm.expectEmit(true, false, false, true);
+        emit CREsolverMarket.ResolutionRequested(0, "Q?");
         market.requestResolution(0);
     }
 

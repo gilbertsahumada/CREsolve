@@ -18,6 +18,97 @@ const client = createPublicClient({
   transport: http(RPC_URL),
 });
 
+// ─── useWallet ───────────────────────────────────────────────────────────────
+
+export function useWallet() {
+  const [address, setAddress] = useState<Address | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const connect = useCallback(async () => {
+    if (typeof window === "undefined" || !window.ethereum) {
+      alert("Please install MetaMask or another Web3 wallet.");
+      return;
+    }
+
+    try {
+      setIsConnecting(true);
+      const accounts = await window.ethereum.request({
+        method: "eth_requestAccounts",
+      });
+      
+      if (accounts && accounts.length > 0) {
+        setAddress(accounts[0] as Address);
+        
+        // Switch to Sepolia if needed
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: `0x${CHAIN.id.toString(16)}` }],
+          });
+        } catch (switchError: any) {
+          // This error code indicates that the chain has not been added to MetaMask.
+          if (switchError.code === 4902) {
+            try {
+              await window.ethereum.request({
+                method: "wallet_addEthereumChain",
+                params: [
+                  {
+                    chainId: `0x${CHAIN.id.toString(16)}`,
+                    chainName: CHAIN.name,
+                    rpcUrls: [RPC_URL],
+                    nativeCurrency: CHAIN.nativeCurrency,
+                    blockExplorerUrls: [CHAIN.blockExplorers?.default.url],
+                  },
+                ],
+              });
+            } catch (addError) {
+              console.error("Failed to add Sepolia network", addError);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to connect wallet", error);
+    } finally {
+      setIsConnecting(false);
+    }
+  }, []);
+
+  const disconnect = useCallback(() => {
+    setAddress(null);
+  }, []);
+
+  // Listen for account changes
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.ethereum) {
+      const handleAccountsChanged = (accounts: string[]) => {
+        if (accounts.length > 0) {
+          setAddress(accounts[0] as Address);
+        } else {
+          setAddress(null);
+        }
+      };
+
+      window.ethereum.on("accountsChanged", handleAccountsChanged);
+      
+      // Check if already connected
+      window.ethereum.request({ method: "eth_accounts" })
+        .then((accounts: any) => {
+          if (accounts && accounts.length > 0) {
+            setAddress(accounts[0] as Address);
+          }
+        })
+        .catch(console.error);
+
+      return () => {
+        window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+      };
+    }
+  }, []);
+
+  return { address, isConnecting, connect, disconnect };
+}
+
 // ─── useMarkets ──────────────────────────────────────────────────────────────
 
 export function useMarkets() {

@@ -7,6 +7,7 @@ struct Market {
     uint256 deadline;
     address creator;
     bool resolved;
+    bool resolution;
 }
 
 struct Reputation {

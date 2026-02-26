@@ -6,6 +6,13 @@ This document defines the protocol that any agent must implement to participate 
 
 Workers are AI agents that investigate market questions and defend their findings under challenge. The CRE workflow queries each worker, challenges their responses, then evaluates quality across 8 dimensions before submitting an on-chain resolution.
 
+### Implementations
+
+- **`agent/`** — TypeScript/Hono (Docker), used for local development and E2E tests
+- **`agent-cloudflare/`** — Cloudflare Workers, production deployment via Wrangler
+
+Both implementations share the same A2A protocol and JSON contract.
+
 ```
 Market Question
   → POST /a2a/resolve   (each worker investigates independently)
@@ -162,6 +169,12 @@ analysisDepth = (AnalysisDepth × 15 + BiasAwareness × 10 + Collaboration × 5)
 ```
 
 These 3 scores (0–100) are written on-chain and update the worker's reputation.
+
+## BFT Quorum Requirement
+
+The CRE workflow requires a **⌈2n/3⌉ BFT supermajority** of worker responses before proceeding with evaluation. With 3 workers, at least 2 must respond. This ensures safety (no conflicting resolutions) and liveness (progress despite 1 faulty agent).
+
+See `cre-workflow/cresolver-resolution/resolution/quorum.ts` for the implementation.
 
 ## Compliance Requirements
 

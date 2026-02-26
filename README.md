@@ -7,31 +7,50 @@ CRE workflows orchestrate multiple AI agents to investigate market questions, ch
 ## Architecture
 
 ```
-┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  CREsolverMarket │◄────│   CREReceiver    │◄────│  KeystoneForwarder│
-│  (Solidity)      │     │  (DON bridge)    │     │  (Chainlink DON) │
-└──────┬───────────┘     └──────────────────┘     └────────┬─────────┘
-       │                                                    │
-       │ events                                    DON-signed reports
-       │                                                    │
-       ▼                                                    │
-┌──────────────────┐     ┌──────────────────┐              │
-│  CRE Workflow    │────►│  Worker Agents   │              │
-│  (TypeScript)    │     │  (Hono/OpenAI)   │◄─────────────┘
-│  6-step pipeline │     │  /a2a/resolve    │
-│  runs in DON TEE │     │  /a2a/challenge  │
-└──────────────────┘     └──────────────────┘
+                         ┌─────────────────────────────────────────────┐
+                         │              Chainlink DON (TEE)            │
+                         │                                             │
+  requestResolution()    │  ┌─────────────────────────────────────┐   │
+  emits event ──────────►│  │  CRE Workflow (TypeScript → WASM)   │   │
+                         │  │                                     │   │
+                         │  │  1. READ  ── on-chain data ◄────────┼───┼── CREsolverMarket
+                         │  │  2. ASK   ── /a2a/resolve  ────────►│   │   (Solidity)
+                         │  │  3. CHALLENGE ─ /a2a/challenge ────►│   │
+                         │  │  4. EVALUATE ── LLM scoring         │   │   ┌────────────────┐
+                         │  │  5. RESOLVE ── BFT consensus        │   │   │ Worker Agents  │
+                         │  │  6. WRITE  ── runtime.report()      │   │   │ (Cloudflare)   │
+                         │  │                                     │   │   │ /a2a/resolve   │
+                         │  └─────────────┬───────────────────────┘   │   │ /a2a/challenge │
+                         │                │ DON-signed report         │   └────────────────┘
+                         └────────────────┼───────────────────────────┘
+                                          ▼
+                         ┌──────────────────────────────┐
+                         │    KeystoneForwarder          │
+                         └──────────────┬───────────────┘
+                                        ▼
+                         ┌──────────────────────────────┐
+                         │    CREReceiver (bridge)       │──► resolveMarket()
+                         └──────────────────────────────┘         │
+                                                                  ▼
+                                                    ┌──────────────────────┐
+                                                    │  CREsolverMarket     │
+                                                    │  • distribute rewards│
+                                                    │  • return stakes     │
+                                                    │  • update reputation │
+                                                    └──────────────────────┘
 ```
 
 | Directory | Description |
 |-----------|-------------|
 | `contracts/` | Solidity (Foundry) — `CREsolverMarket`, `CREReceiver`, `ReceiverTemplate` |
-| `agent/` | TypeScript/Hono worker agent with mock + LLM (OpenAI) modes |
-| `agent-cloudflare/` | Cloudflare Worker version of the A2A agent |
+| `agent/` | TypeScript/Hono worker agent with mock + LLM modes |
+| `agent-cloudflare/` | Cloudflare Worker version of the A2A agent (production) |
 | `cre-workflow/` | CRE resolution workflow (TypeScript SDK, compiles to WASM for DON) |
+| `frontend/` | Read-only Next.js frontend — Sepolia markets, agents, reputation |
 | `e2e/` | End-to-end test suite (Docker Compose + Anvil + Vitest) |
 | `scripts/` | Automation — setup, deploy, registration, verification |
 | `shared/` | Shared TypeScript interfaces |
+| `docs/` | Architecture, hackathon one-pager, judge setup, privacy roadmap |
 
 ## Command Map
 
@@ -49,6 +68,10 @@ yarn sepolia:normalize   # normalize existing agent IDs
 yarn sepolia:audit       # strict on-chain audit
 yarn sepolia:deploy
 yarn sepolia:verify
+
+# Frontend
+yarn frontend:dev    # local dev server
+yarn frontend:build  # static export
 ```
 
 ## Prerequisites
@@ -295,6 +318,11 @@ cresolver/
 │       ├── evm.ts               # On-chain read/write client
 │       └── evaluate.ts          # Consensus & scoring logic
 │
+├── frontend/                    # Read-only Next.js frontend
+│   ├── app/                     # App Router pages
+│   ├── components/              # React components
+│   └── lib/                     # Config, ABIs, hooks
+│
 ├── scripts/                     # Demo automation
 │   ├── setup-demo.ts            # Shared setup (local/e2e via --profile)
 │   ├── generate-wallets.ts      # Sepolia worker wallet generation
@@ -312,14 +340,12 @@ cresolver/
 ├── shared/
 │   └── types.ts                 # Shared TypeScript interfaces
 │
-└── docs_final/                  # Architecture documentation
-    ├── BLUEPRINT.md
-    ├── EXECUTION_PLAN.md
-    ├── JUDGE_SETUP.md
-    ├── IMPLEMENTATION_GUIDE.md
-    ├── HACKATHON_ONE_PAGER.md
-    ├── PRIVACY_ROADMAP.md
-    └── EIP712_DEEP_DIVE.md
+└── docs/                        # Architecture documentation
+    ├── ARCHITECTURE.md           # Consolidated system architecture
+    ├── HACKATHON_ONE_PAGER.md    # Quick overview for judges
+    ├── JUDGE_SETUP.md            # Setup & verification guide
+    ├── DASHBOARD.md              # Frontend docs
+    └── PRIVACY_ROADMAP.md        # Privacy design
 ```
 
 ## Configuration
@@ -330,8 +356,8 @@ cresolver/
 |----------|---------|-------------|
 | `AGENT_PORT` | `3001` | Port the agent listens on |
 | `AGENT_NAME` | `"Worker"` | Agent display name |
-| `LLM_API_KEY` | `""` | OpenAI API key (empty = mock mode) |
-| `LLM_MODEL` | `"gpt-4o-mini"` | LLM model for investigation |
+| `LLM_API_KEY` | `""` | LLM API key (empty = mock mode) |
+| `LLM_MODEL` | `"meta/llama-3.3-70b-instruct"` | LLM model for investigation (NVIDIA NIM) |
 | `RPC_URL` | `http://127.0.0.1:8547` | Ethereum JSON-RPC endpoint |
 | `KEYSTONE_FORWARDER` | `address(0)` | KeystoneForwarder contract (deploy script) |
 | `DIRECT_RESOLVER` | `address(0)` | Direct resolver signer (deploy script) |
@@ -339,7 +365,7 @@ cresolver/
 ### Agent Modes
 
 - **Mock mode** (default): Deterministic responses, no API key needed. Ideal for testing.
-- **LLM mode**: Set `LLM_API_KEY` to an OpenAI key. The agent uses the model specified in `LLM_MODEL` to investigate questions and defend challenges.
+- **LLM mode**: Set `LLM_API_KEY` to your API key. The agent uses the model specified in `LLM_MODEL` (default: `meta/llama-3.3-70b-instruct` via NVIDIA NIM) to investigate questions and defend challenges.
 
 ### CRE Workflow Config (`cre-workflow/cresolver-resolution/config.json`)
 
@@ -421,14 +447,24 @@ With `n` workers, the system tolerates up to `f = ⌊(n-1)/3⌋` faulty or unres
 
 Implementation: [`resolution/quorum.ts`](cre-workflow/cresolver-resolution/resolution/quorum.ts)
 
+## Frontend
+
+Read-only frontend for visualizing CREsolver markets and agents on Sepolia. No wallet required.
+
+```bash
+# Local development
+yarn frontend:dev
+
+# Build static export (deployable to Vercel)
+yarn frontend:build
+```
+
+See [docs/DASHBOARD.md](docs/DASHBOARD.md) for architecture and deployment details.
+
 ## Detailed Documentation
 
-For comprehensive architecture and implementation details:
-
-- **[BLUEPRINT.md](docs_final/BLUEPRINT.md)** — System architecture, design decisions, on-chain/off-chain dimension model
-- **[IMPLEMENTATION_GUIDE.md](docs_final/IMPLEMENTATION_GUIDE.md)** — Full implementation reference with code, progress tracking, and deployment guide
-- **[HACKATHON_ONE_PAGER.md](docs_final/HACKATHON_ONE_PAGER.md)** — Jury/demo one-page source of truth (architecture + algorithm + E2E checklist)
-- **[PRIVACY_ROADMAP.md](docs_final/PRIVACY_ROADMAP.md)** — Phased privacy design (Confidential HTTP first, private rewards later)
-- **[EXECUTION_PLAN.md](docs_final/EXECUTION_PLAN.md)** — Phased execution plan (Option A/B/C + Thursday checklist)
-- **[JUDGE_SETUP.md](docs_final/JUDGE_SETUP.md)** — Minimal setup/verification guide for judges
-- **[EIP712_DEEP_DIVE.md](docs_final/EIP712_DEEP_DIVE.md)** — Detailed EIP-712 guide + exact `setAgentWallet` usage in this repo
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — Consolidated system architecture, resolution pipeline, contracts, scoring
+- **[HACKATHON_ONE_PAGER.md](docs/HACKATHON_ONE_PAGER.md)** — Quick overview for judges (architecture + algorithm + E2E checklist)
+- **[JUDGE_SETUP.md](docs/JUDGE_SETUP.md)** — Setup and verification guide for judges
+- **[DASHBOARD.md](docs/DASHBOARD.md)** — Frontend architecture and deployment
+- **[PRIVACY_ROADMAP.md](docs/PRIVACY_ROADMAP.md)** — Phased privacy design (Confidential HTTP first, private rewards later)

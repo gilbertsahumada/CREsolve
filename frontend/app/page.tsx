@@ -13,7 +13,7 @@ export default function DashboardPage() {
         <MarketList />
       </main>
       <footer className="border-t border-navy-700 py-6 text-center text-xs text-slate-500">
-        CREsolver &mdash; Chainlink CRE + AI Agents &mdash; Sepolia Testnet
+        CREsolver &mdash; <a href="https://eips.ethereum.org/EIPS/eip-8004" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-white transition-colors">ERC-8004</a> Verifiable Agents + Chainlink CRE &mdash; Sepolia Testnet
       </footer>
     </>
   );

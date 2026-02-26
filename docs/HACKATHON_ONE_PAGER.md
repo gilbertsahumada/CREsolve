@@ -4,19 +4,20 @@ Short document for demo, judges, and execution.
 
 ## 1) What is CREsolver
 
-CREsolver resolves prediction markets with:
-- AI worker agents that investigate and respond;
-- a Chainlink CRE workflow that orchestrates evaluation and consensus;
-- on-chain settlement in `CREsolverMarket`.
+CREsolver resolves prediction markets using **verifiable AI agents** built on the **[ERC-8004](https://eips.ethereum.org/EIPS/eip-8004)** standard:
+- ERC-8004 agents register on-chain, exposing identity + service endpoints + reputation;
+- a Chainlink CRE workflow discovers agents via ERC-8004 `tokenURI`, orchestrates evaluation and BFT consensus;
+- on-chain settlement distributes rewards and writes ERC-8004 reputation scores.
 
-Result: final resolution + reward distribution + per-worker reputation.
+Result: final resolution + reward distribution + per-agent verifiable reputation.
 
 ### Key Technologies
+- **[ERC-8004](https://eips.ethereum.org/EIPS/eip-8004)** — The standard for verifiable agents on EVM. Provides on-chain identity (IdentityRegistry), endpoint discovery (tokenURI), wallet binding (EIP-712), and multi-dimensional reputation (ReputationRegistry)
 - **Chainlink CRE** — Compute Runtime Environment, executes the resolution workflow inside a DON TEE
 - **BFT Quorum** — ⌈2n/3⌉ supermajority (same as Chainlink OCR, PBFT, Tendermint)
-- **ERC-8004** — On-chain identity + reputation registry for agents
 - **Cloudflare Workers** — Production deployment for AI agents
 - **NVIDIA NIM** — LLM evaluation via meta/llama-3.3-70b-instruct
+- **[Trust8004](https://www.trust8004.xyz)** — Public explorer for ERC-8004 agent identities and reputation
 
 ## 2) Architecture (source of truth)
 
@@ -37,11 +38,20 @@ Full architecture: [docs/ARCHITECTURE.md](ARCHITECTURE.md)
 1. Market created and workers `joinMarket`.
 2. `requestResolution(marketId)` emitted.
 3. CRE workflow reads market/workers/reputation.
-4. Workflow queries each worker (`/a2a/resolve`) — BFT quorum required.
-5. Workflow challenges responses (`/a2a/challenge`).
-6. Workflow evaluates quality per worker and calculates weighted consensus.
-7. Workflow reports (`runtime.report`) → forwarder → receiver.
-8. `resolveMarket` distributes rewards, returns stakes, and updates reputation.
+4. Workflow discovers agent endpoints via ERC-8004 `tokenURI`.
+5. Workflow queries each worker (`/a2a/resolve`) — BFT quorum required.
+6. Workflow challenges responses (`/a2a/challenge`).
+7. Workflow evaluates quality per worker and calculates weighted consensus.
+8. Workflow reports (`runtime.report`) → forwarder → receiver.
+9. `resolveMarket` distributes rewards, returns stakes, and updates ERC-8004 reputation.
+
+### Workflow Triggers
+
+The workflow supports two triggers:
+- **EVM Log Trigger** — Production: fires automatically on `ResolutionRequested` event, fully autonomous.
+- **HTTP Trigger** — Demo: fires on demand via signed HTTP POST, allows controlled step-by-step demonstration.
+
+For the hackathon demo we use the **HTTP Trigger** to control timing. In production, the EVM Log Trigger makes resolution fully autonomous.
 
 ## 4) A2A Protocol
 
@@ -119,4 +129,4 @@ Shows: pipeline visualization, agent reputation bars, BFT quorum indicator, mark
 
 ## 10) Judge Pitch (30s)
 
-"The evaluation algorithm is public and auditable in the repo. Agents investigate and challenge each other. The CRE workflow calculates weighted consensus and settles on-chain. In TEE environments we protect sensitive runtime data without hiding the scoring logic."
+"CREsolver uses ERC-8004 verifiable agents to resolve prediction markets. Each agent has an on-chain identity, discoverable endpoints, and accumulated reputation — all through the ERC-8004 standard. A Chainlink CRE workflow orchestrates investigation, challenge, and BFT consensus inside a DON TEE, then writes resolution results and reputation scores back on-chain. The algorithm is public, the agents are verifiable, and the reputation is permanent."

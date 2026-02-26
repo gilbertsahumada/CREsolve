@@ -1,10 +1,12 @@
 # CRE Agent Protocol Specification
 
-This document defines the protocol that any agent must implement to participate as a worker in the CREsolver resolution market.
+This document defines the protocol that any [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) verifiable agent must implement to participate as a worker in the CREsolver resolution market.
 
 ## Overview
 
-Workers are AI agents that investigate market questions and defend their findings under challenge. The CRE workflow queries each worker, challenges their responses, then evaluates quality across 8 dimensions before submitting an on-chain resolution.
+Workers are **ERC-8004 verifiable AI agents** that investigate market questions and defend their findings under challenge. Each agent has an on-chain identity in the ERC-8004 IdentityRegistry, discoverable service endpoints via `tokenURI`, and accumulated reputation in the ERC-8004 ReputationRegistry.
+
+The CRE workflow discovers agents via ERC-8004 `tokenURI`, queries each worker, challenges their responses, evaluates quality across 8 dimensions, and submits an on-chain resolution with reputation updates.
 
 ### Implementations
 
@@ -21,9 +23,9 @@ Market Question
   → On-chain resolution   (weighted vote + reputation update)
 ```
 
-## Endpoint Discovery
+## ERC-8004 Endpoint Discovery
 
-Agent HTTP endpoints are discovered **on-chain** from the ERC-8004 identity registry. When an agent registers, its `tokenURI` contains a registration-v1 JSON with a `services` array. The CRE workflow reads this to find each agent's API endpoint:
+Agent HTTP endpoints are discovered **on-chain** from the [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) IdentityRegistry. When an agent calls `register(agentURI)`, it receives an `agentId` (ERC-721 NFT). The `tokenURI` contains a `registration-v1` JSON with a `services` array. The CRE workflow reads this at runtime to find each agent's API endpoint — no hardcoded URLs needed:
 
 ```
 workerAgentIds[marketId][workerAddress]  → agentId
@@ -192,20 +194,21 @@ Agents **must**:
 
 5. **Respond to all challenges.** The `responses` array must have the same length as the `challenges` array. Missing responses reduce the Collaboration score.
 
-## Example: Full Worker Lifecycle
+## Example: Full Worker Lifecycle (ERC-8004)
 
 ```
-1. Agent registers in ERC-8004:   identityRegistry.register(agentURI) → agentId
-2. Agent sets a2a endpoint:       tokenURI includes services[name="a2a"]
-3. Worker joins market:            market.joinMarket{value: stake}(marketId, agentId)
-4. Resolution requested:           ResolutionRequested(marketId, question) event emitted
-5. CRE discovers endpoints:       workerAgentIds → tokenURI → A2A service endpoint
-6. CRE queries worker:            POST /a2a/resolve → determination + evidence
-7. CRE challenges worker:         POST /a2a/challenge → defense responses
-8. LLM evaluates 8 dimensions:    scores 0–100 per dimension
-9. Aggregated to 3 on-chain:      resQuality, srcQuality, analysisDepth
-10. Weighted vote determines:     YES/NO resolution
-11. On-chain settlement:           rewards distributed, reputation updated
+1. Agent registers in ERC-8004:    identityRegistry.register(agentURI) → agentId (NFT)
+2. Agent binds wallet (EIP-712):   identityRegistry.setAgentWallet(agentId, wallet, sig)
+3. Agent sets service endpoints:   tokenURI includes services[name="A2A"] with endpoint URL
+4. Worker joins market:            market.joinMarket{value: stake}(marketId, agentId)
+5. Resolution triggered:           EVM Log Trigger (production) or HTTP Trigger (demo)
+6. CRE discovers via ERC-8004:    workerAgentIds → tokenURI → A2A service endpoint
+7. CRE queries worker:            POST /a2a/resolve → determination + evidence
+8. CRE challenges worker:         POST /a2a/challenge → defense responses
+9. LLM evaluates 8 dimensions:    scores 0–100 per dimension
+10. Aggregated to 3 on-chain:     resQuality, srcQuality, analysisDepth
+11. Weighted vote determines:      YES/NO resolution
+12. On-chain settlement:           rewards distributed, ERC-8004 reputation updated via giveFeedback()
 ```
 
 ## TypeScript Types

@@ -1,6 +1,6 @@
 # CREsolver — Judge Setup & Verification
 
-Quick guide to review the system without friction.
+Quick guide to review the system without friction. CREsolver uses [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) for verifiable agent identity and reputation on-chain.
 
 ## 1) Dashboard (Fastest Way)
 
@@ -34,14 +34,18 @@ What to validate:
 - `e2e:setup` deploys contract, creates 3 markets, and registers 3 workers.
 - `e2e:test` passes green (agent health, market resolution, receiver path).
 
-## 3) Sepolia Agent Setup (Wallet/Identity Review)
+## 3) Sepolia Agent Setup (ERC-8004 Identity)
+
+Agents are registered on-chain using the [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) standard. Each agent gets an NFT identity, a `tokenURI` with service endpoints, and a cryptographically-bound wallet via EIP-712 signing.
+
+View any agent's on-chain identity at [Trust8004](https://www.trust8004.xyz).
 
 Generate wallets:
 ```bash
 yarn sepolia:wallets
 ```
 
-Register agents ERC-8004:
+Register agents in ERC-8004 IdentityRegistry:
 ```bash
 yarn sepolia:sync
 ```
@@ -90,7 +94,9 @@ AGENT_PORT=3103 AGENT_NAME=Gamma yarn start
 
 - Each `privateKey` corresponds to its `address`.
 - Each worker has sufficient balance to operate.
-- Each worker authorized in IdentityRegistry for its `agentId` (`isAuthorizedOrOwner=true`).
+- Each worker registered in ERC-8004 IdentityRegistry with a valid `agentId` (`isAuthorizedOrOwner=true`).
+- Each worker has a `tokenURI` with a `registration-v1` JSON containing an `A2A` service entry.
+- ERC-8004 ReputationRegistry tracks per-agent scores after each resolution round.
 - BFT quorum: at least ⌈2n/3⌉ agents must respond (2/3 for 3 agents).
 
 ## 6) Sepolia Reference Deploy

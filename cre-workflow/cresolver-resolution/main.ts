@@ -2,6 +2,7 @@ import {
   EVMClient,
   HTTPCapability,
   bytesToBigint,
+  hexToBase64,
   getNetwork,
   handler,
   Runner,
@@ -22,11 +23,9 @@ import { generateMockDeterminations, generateMockChallengeResults } from "./agen
 // ─── Event signature for the EVM Log Trigger ─────────────────────────────────
 
 // keccak256("ResolutionRequested(uint256,string)")
-/*
 const RESOLUTION_REQUESTED_TOPIC = keccak256(
   toBytes("ResolutionRequested(uint256,string)"),
 );
-*/
 
 function resolveEvmClient(evmConfig: EvmConfig): EVMClient {
   if (evmConfig.chainSelectorName) {
@@ -46,7 +45,6 @@ function resolveEvmClient(evmConfig: EvmConfig): EVMClient {
   throw new Error("Either chainSelectorName or chain_selector must be provided in config");
 }
 
-/*
 function marketIdFromLog(log: EVMLog): number {
   if (log.topics.length < 2 || !log.topics[1]) {
     throw new Error(
@@ -56,7 +54,6 @@ function marketIdFromLog(log: EVMLog): number {
   const marketIdTopic = log.topics[1];
   return Number(bytesToBigint(marketIdTopic));
 }
-*/
 
 // ─── Discovery report logging ────────────────────────────────────────────────
 
@@ -157,14 +154,13 @@ function resolveMarket(
 }
 
 // ─── Trigger handlers ─────────────────────────────────────────────────────────
-/*
+
 const onLogTrigger = (runtime: Runtime<Config>, log: EVMLog): string => {
   const marketId = marketIdFromLog(log);
   runtime.log(`EVM Log Trigger: ResolutionRequested for market ${marketId}`);
-  //resolveMarket(runtime, marketId);
-  return "Only logging for now, resolution logic is commented out for testing";
+  resolveMarket(runtime, marketId);
+  return `Market ${marketId} resolution submitted (EVM Log Trigger)`;
 };
-*/
 
 const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload): string => {
   const inputStr = new TextDecoder().decode(payload.input);
@@ -189,10 +185,18 @@ const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload): string =
 // ─── Workflow wiring ──────────────────────────────────────────────────────────
 
 function initWorkflow(config: Config) {
-  //const evm = config.evms[0];
-  //const evmClient = resolveEvmClient(evm);
-  //const marketAddr = evm.market_address as Address;
+  const evm = config.evms[0];
+  const evmClient = resolveEvmClient(evm);
+  const marketAddr = evm.market_address as Address;
 
+  // ── Trigger: EVM Log Trigger ──────────────────────────────────────────
+  // Fires when requestResolution() emits ResolutionRequested(uint256,string)
+  const evmLogTrigger = evmClient.logTrigger({
+    addresses: [hexToBase64(marketAddr)],
+    topics: [
+      { values: [hexToBase64(RESOLUTION_REQUESTED_TOPIC)] },
+    ],
+  });
 
   // ── Trigger: HTTP Trigger ─────────────────────────────────────────────
   const httpTrigger = new HTTPCapability().trigger({
@@ -205,7 +209,7 @@ function initWorkflow(config: Config) {
   });
 
   return [
-    //handler(evmLogTrigger, onLogTrigger),
+    handler(evmLogTrigger, onLogTrigger),
     handler(httpTrigger, onHttpTrigger),
   ];
 }

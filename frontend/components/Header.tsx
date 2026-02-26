@@ -11,12 +11,20 @@ export default function Header() {
           <div>
             <h1 className="text-lg font-semibold text-white">CREsolver</h1>
             <p className="text-xs text-slate-400">
-              Decentralized Prediction Market Resolution
+              ERC-8004 Verifiable Agents + Chainlink CRE
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
+          <a
+            href="https://eips.ethereum.org/EIPS/eip-8004"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
+          >
+            ERC-8004
+          </a>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 pulse-dot" />
             {CHAIN.name}

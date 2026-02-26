@@ -1,8 +1,23 @@
 # CREsolver
 
-Decentralized prediction market resolution powered by **Chainlink CRE** (Compute Runtime Environment) and **AI worker agents**.
+Decentralized prediction market resolution powered by **Chainlink CRE** (Compute Runtime Environment), **[ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) verifiable agents**, and **AI worker agents**.
 
-CRE workflows orchestrate multiple AI agents to investigate market questions, challenge each other's determinations, and reach multi-dimensional consensus — all executed inside a Chainlink DON with results written on-chain.
+CRE workflows orchestrate multiple ERC-8004-registered AI agents to investigate market questions, challenge each other's determinations, and reach multi-dimensional consensus — all executed inside a Chainlink DON with results written on-chain.
+
+## ERC-8004: Verifiable Agent Standard
+
+CREsolver is built on **[ERC-8004](https://eips.ethereum.org/EIPS/eip-8004)**, the standard for verifiable agents on EVM. Every worker agent has an on-chain identity and reputation managed through two ERC-8004 registries:
+
+- **IdentityRegistry** (`0x8004A818BFB912233c491871b3d84c89A494BD9e`) — Agents register via `register()`, receive an `agentId` (NFT), and store their metadata + service endpoints in `tokenURI`. The CRE workflow reads `tokenURI` to discover each agent's A2A endpoint at runtime.
+- **ReputationRegistry** (`0x8004B663056A597Dffe9eCcC1965A193B7388713`) — After each resolution, the CRE workflow writes multi-dimensional reputation scores on-chain via `giveFeedback()`. Scores accumulate across resolutions and are publicly queryable via `getSummary()`.
+
+Key ERC-8004 features used:
+- **On-chain endpoint discovery** — Agent HTTP endpoints are stored in `tokenURI` as a `registration-v1` JSON with a `services` array
+- **EIP-712 wallet binding** — `setAgentWallet()` uses EIP-712 structured data signing to cryptographically bind an agent identity to a worker wallet
+- **Authorization gates** — `isAuthorizedOrOwner()` ensures only registered agents can join markets via `joinMarket()`
+- **Multi-dimensional reputation** — 3 on-chain scores (Resolution Quality, Source Quality, Analysis Depth) written per resolution round
+
+View agents on the [Trust8004 Explorer](https://www.trust8004.xyz).
 
 ## Architecture
 
@@ -427,6 +442,17 @@ The CRE workflow executes a 6-step resolution pipeline:
 4. **EVALUATE** — Score workers across 3 public dimensions (Resolution Quality, Source Quality, Analysis Depth), compute consensus
 5. **RESOLVE** — Determine final resolution and reward weights
 6. **WRITE** — Submit DON-signed report on-chain via `CREReceiver`
+
+### Workflow Triggers
+
+The CRE workflow supports **two triggers** simultaneously:
+
+| Trigger | How it fires | Use case |
+|---------|-------------|----------|
+| **EVM Log Trigger** | Automatically when `requestResolution()` emits `ResolutionRequested(uint256,string)` | Production — fully autonomous, no manual intervention |
+| **HTTP Trigger** | `POST` with `{ "market_id": N }` signed by `authorizedEVMAddress` | Demo & testing — trigger resolution on demand |
+
+For the hackathon demo we use the **HTTP Trigger** to control timing and show the pipeline step-by-step. In production, the **EVM Log Trigger** makes the system fully autonomous — resolution starts the moment `requestResolution()` is called on-chain.
 
 ## BFT Quorum
 

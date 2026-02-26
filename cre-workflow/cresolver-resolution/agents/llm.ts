@@ -12,6 +12,14 @@ import type {
   LLMWorkerScores,
 } from "../types";
 
+// ConfidentialHTTPClient protects the NVIDIA API key via DON Vault secret
+// injection. The key is resolved inside the enclave using template syntax
+// ({{.NVIDIA_API_KEY}}) and never appears in code, logs, or node memory.
+//
+// We intentionally do NOT use encryptOutput because we process the LLM
+// response inside this workflow (aggregate 8 dimensions → 3 on-chain scores).
+// CRE docs: "Do not decrypt inside the workflow." The raw 8-dimension scores
+// are ephemeral — only the aggregated results leave the TEE via on-chain report.
 const confidentialClient = new ConfidentialHTTPClient();
 
 // ─── Scoring weights for 8 → 3 aggregation ─────────────────────────────────

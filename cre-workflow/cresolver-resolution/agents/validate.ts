@@ -7,6 +7,7 @@ import { ok } from "@chainlink/cre-sdk";
 import { consensusIdenticalAggregation } from "@chainlink/cre-sdk";
 import type { Config, WorkerData, DiscardedWorker } from "../types";
 
+// Regular HTTPClient for health checks — endpoints are public (ERC-8004 tokenURI).
 const httpClient = new HTTPClient();
 
 export interface EndpointValidationResult {

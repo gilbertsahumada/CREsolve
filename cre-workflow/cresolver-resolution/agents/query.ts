@@ -16,6 +16,10 @@ import type {
 import { generateChallenges } from "../resolution/evaluate";
 import { bftQuorum } from "../resolution/quorum";
 
+// Regular HTTPClient for agent queries. Agent endpoints are public
+// (discovered via ERC-8004 tokenURI), so no secret injection needed.
+// Responses (determinations, evidence, challenges) are processed inside
+// the TEE and never written raw on-chain — only aggregated scores.
 const httpClient = new HTTPClient();
 
 /** Encode a string as base64 for protobuf bytes JSON fields */

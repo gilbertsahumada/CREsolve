@@ -59,15 +59,23 @@ For the hackathon demo we use the **HTTP Trigger** to control timing. In product
 - Positioned as "A2A-lite" — decoupled agentic interaction protocol by endpoint and typed payload.
 - Post-hackathon: can wrap in formal A2A envelope without breaking business logic.
 
-## 5) CRE + TEE: Confidential HTTP & Secrets
+## 5) CRE + TEE: Privacy by Design
 
-- In CRE, HTTP calls execute inside the TEE with secrets from DON vault (no API keys exposed in code/config).
-- Output can be encrypted before leaving the enclave (`encryptOutput`).
-- Complements CREsolver design: public logic + sensitive data protected at runtime.
+CREsolver uses two levels of CRE privacy:
 
-References:
-- `conf-http-demo`: Chainlink confidential HTTP with secrets and encrypted response.
-- `Compliant-Private-Transfer-Demo`: private transfers with permissioning/compliance controls.
+**1. Secret injection (Confidential HTTP)**
+- `NVIDIA_API_KEY` is stored in DON Vault and injected at runtime via `vaultDonSecrets`
+- The LLM call uses `ConfidentialHTTPClient` — the API key never appears in code, logs, or node memory
+- Agent queries use regular `HTTPClient` since endpoints are public (ERC-8004 `tokenURI`)
+
+**2. TEE isolation (intermediate data)**
+- Individual agent determinations, evidence, and sources only exist inside the TEE during execution
+- The LLM returns 8 raw evaluation dimensions per worker — these are aggregated to 3 scores inside the TEE and never written raw on-chain
+- `correctnessMult` (200 if correct, 50 if incorrect) is applied inside the TEE, not stored
+
+**Why no `encryptOutput`?** CRE supports encrypting API responses before they leave the enclave, but CREsolver processes the LLM response inside the workflow (not in an external backend). The CRE docs state: "Do not decrypt inside the workflow." Since we need to aggregate scores in the workflow, and the final output is intentionally public, `encryptOutput` doesn't apply.
+
+**Result**: secret injection for API keys, TEE isolation for intermediate data, public aggregated results on-chain.
 
 ## 6) Public Algorithm (open source)
 

@@ -696,13 +696,55 @@ is ephemeral runtime state.
 
 ### Confidential in CRE TEE Runtime
 
-| Data | Location | Confidential |
-|------|----------|-------------|
-| Individual worker determinations | DON TEE | Yes |
-| Raw evidence and source materials | DON TEE | Yes |
-| Challenge questions and defense responses | DON TEE | Yes |
-| `correctnessMult` per worker | DON TEE | Yes |
-| LLM API keys | DON vault secrets | Yes |
+| Data | Location | Confidential | Mechanism |
+|------|----------|-------------|-----------|
+| NVIDIA API key | DON Vault | Yes | `vaultDonSecrets` — injected at runtime, never in code |
+| Individual worker determinations | DON TEE | Yes | Only exists during workflow execution |
+| Raw evidence and source materials | DON TEE | Yes | Only exists during workflow execution |
+| Challenge questions and defense responses | DON TEE | Yes | Only exists during workflow execution |
+| LLM raw evaluation (8 dimensions per worker) | DON TEE | Yes | Aggregated to 3 scores before leaving TEE |
+| `correctnessMult` per worker | DON TEE | Yes | Applied inside TEE, not written on-chain |
+
+### Confidential HTTP vs Regular HTTP
+
+The workflow uses two HTTP clients with different privacy guarantees:
+
+| Client | Used for | Why |
+|--------|----------|-----|
+| `ConfidentialHTTPClient` | LLM evaluation (NVIDIA NIM API) | Protects `NVIDIA_API_KEY` via DON Vault secret injection. Request executes inside the enclave — API key never appears in code, logs, or node memory. |
+| `HTTPClient` | Agent queries (`/a2a/resolve`, `/a2a/challenge`) and health checks | Agent endpoints are public (discoverable via ERC-8004 `tokenURI`). Responses are processed inside TEE and never written raw on-chain. |
+
+### Why We Don't Use `encryptOutput`
+
+CRE's Confidential HTTP supports encrypting the API response before it leaves
+the enclave (`encryptOutput: true`). CREsolver intentionally does **not** use
+this feature because:
+
+1. **We process the LLM response inside the workflow** — The 8-dimension scores
+   are aggregated to 3 on-chain scores and used to compute the resolution. The
+   CRE docs explicitly state: "Do not decrypt inside the workflow."
+2. **The final output is intentionally public** — Resolution (YES/NO) and
+   aggregated reputation scores are designed to be on-chain and auditable.
+3. **Raw data never leaves the TEE** — Individual agent determinations, evidence,
+   and the 8 raw LLM dimensions exist only during workflow execution. They are
+   not included in the on-chain report.
+
+The privacy model is: **secret injection for API keys, TEE isolation for
+intermediate data, public aggregated results on-chain.**
+
+```
+Agent endpoints (public, ERC-8004 tokenURI)
+  │
+  ▼
+┌─────────────────────── DON TEE ───────────────────────┐
+│  HTTPClient → agent responses (private, ephemeral)     │
+│  ConfidentialHTTPClient → LLM eval (API key protected) │
+│  8 raw dimensions → aggregated to 3 scores             │
+│  correctnessMult → applied, not stored                 │
+└────────────────────────┬──────────────────────────────┘
+                         ▼
+           On-chain: resolution + 3 scores (public)
+```
 
 In local development and E2E testing, all data is visible in logs and
 responses. Confidentiality only applies when the workflow executes inside

@@ -163,9 +163,10 @@ export function evaluateWithLLM(
         method: "POST",
         multiHeaders: {
           "Content-Type": { values: ["application/json"] },
-          Authorization: { values: ["Bearer {{NVIDIA_API_KEY}}"] },
+          Authorization: { values: ["Bearer {{.NVIDIA_API_KEY}}"] },
         },
         bodyString: body,
+        timeout: "60s",
       },
     })
     .result();

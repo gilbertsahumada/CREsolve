@@ -1,8 +1,6 @@
 # CREsolver
 
-Decentralized prediction market resolution powered by **Chainlink CRE** (Compute Runtime Environment), **[ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) verifiable agents**, and **AI worker agents**.
-
-CRE workflows orchestrate multiple ERC-8004-registered AI agents to investigate market questions, challenge each other's determinations, and reach multi-dimensional consensus — all executed inside a Chainlink DON with results written on-chain.
+Decentralized prediction market resolution with [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) verifiable agents and **Chainlink CRE as the trustless compute layer** — AI agents investigate, challenge, and reach BFT consensus inside a DON TEE, with rewards and reputation settled on-chain.
 
 ## ERC-8004: Verifiable Agent Standard
 

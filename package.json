@@ -18,6 +18,7 @@
     "sepolia:deploy": "./scripts/sepolia-deploy.sh",
     "sepolia:market": "cd contracts && source .env && forge script script/SetupTestMarket.s.sol --rpc-url $SEPOLIA_RPC --broadcast -vvvv",
     "sepolia:demo-markets": "cd contracts && source .env && forge script script/SetupDemoMarkets.s.sol --rpc-url $SEPOLIA_RPC --broadcast -vvvv",
+    "sepolia:join": "cd contracts && source .env && forge script script/JoinMarket.s.sol --rpc-url $SEPOLIA_RPC --broadcast -vvvv",
     "sepolia:verify": "./scripts/sepolia-verify.sh",
     "agent:test": "cd agent && yarn test",
     "agent:cf:test": "cd agent-cloudflare && yarn test",

@@ -102,7 +102,7 @@ export default function MarketList() {
       )}
 
       {/* Market cards */}
-      <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {filtered.map((market) => (
           <MarketCard key={market.id} market={market} />
         ))}

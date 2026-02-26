@@ -64,38 +64,7 @@ View agents on the [Trust8004 Explorer](https://www.trust8004.xyz).
 | `frontend/` | Read-only Next.js frontend — Sepolia markets, agents, reputation |
 | `e2e/` | End-to-end test suite (Docker Compose + Anvil + Vitest) |
 | `scripts/` | Automation — setup, deploy, registration, verification |
-| `shared/` | Shared TypeScript interfaces |
 | `docs/` | Architecture, hackathon one-pager, judge setup, privacy roadmap |
-
-## Command Map
-
-```bash
-# Local setup
-yarn local:setup
-
-# Full E2E
-yarn e2e
-
-# Sepolia helpers
-yarn sepolia:wallets
-yarn sepolia:sync        # canonical full flow
-yarn sepolia:normalize   # normalize existing agent IDs
-yarn sepolia:audit       # strict on-chain audit
-yarn sepolia:deploy
-yarn sepolia:verify
-
-# Frontend
-yarn frontend:dev    # local dev server
-yarn frontend:build  # static export
-```
-
-## Prerequisites
-
-- **Node.js** 18+ (20 recommended)
-- **Yarn** (package manager)
-- **Foundry** — `forge`, `cast`, `anvil` ([install](https://book.getfoundry.sh/getting-started/installation))
-- **Docker & Docker Compose** — for E2E tests
-- **CRE CLI** (optional) — for deploying workflows to a Chainlink DON
 
 ## Quick Start
 
@@ -118,319 +87,39 @@ yarn e2e
 
 This single command orchestrates:
 1. `yarn e2e:up` — Starts Docker Compose (Anvil on port 8547 + 3 agents on 3101-3103)
-2. `yarn e2e:setup` — Runs the shared setup script in `e2e` profile (deploy + workers + markets + requests)
+2. `yarn e2e:setup` — Deploys contracts, creates markets, registers workers
 3. `yarn e2e:test` — Runs 18 integration tests via Vitest
 4. `yarn e2e:down` — Stops all containers
 
-## Running Tests
-
-### Contract Tests (Foundry)
+## Command Map
 
 ```bash
-cd contracts
-forge test -vvv
+# E2E
+yarn e2e                    # full lifecycle
+
+# Sepolia
+yarn sepolia:wallets        # generate worker wallets
+yarn sepolia:sync           # canonical ERC-8004 register/normalize flow
+yarn sepolia:audit          # strict on-chain audit
+yarn sepolia:deploy         # deploy contracts + create market
+yarn sepolia:demo-markets   # create 6 demo markets
+
+# Workflow
+yarn workflow:simulate:sepolia       # simulate against Sepolia (real agents)
+yarn workflow:simulate:sepolia-mock  # simulate with mock responses
+
+# Frontend
+yarn frontend:dev           # local dev server
+yarn frontend:build         # static export (Vercel)
+
+# Tests
+yarn e2e                    # E2E (Docker + Vitest)
+yarn agent:test             # agent unit tests
+yarn agent:cf:test          # Cloudflare agent tests
+yarn workflow:typecheck     # CRE workflow typecheck
 ```
 
-Tests cover `CREsolverMarket` (market lifecycle, staking, resolution, reputation) and `CREReceiver` (report decoding, forwarding).
-
-### Agent Tests (Vitest)
-
-```bash
-cd agent
-yarn test
-```
-
-Unit tests for the worker agent covering health checks, resolve/challenge endpoints, and validation.
-
-### Cloudflare Agent Tests
-
-```bash
-cd agent-cloudflare
-yarn test
-```
-
-To run it locally with Wrangler:
-
-```bash
-cd agent-cloudflare
-yarn dev
-```
-
-### E2E Tests (Docker + Vitest)
-
-```bash
-# Full lifecycle (recommended)
-yarn e2e
-
-# Or step-by-step:
-yarn e2e:up       # Start containers
-yarn e2e:setup    # Deploy & setup
-yarn e2e:test     # Run tests
-yarn e2e:down     # Cleanup
-```
-
-18 integration tests covering agent health, receiver resolution path, and edge cases. Timeout: 120s per test.
-
-### CRE Workflow Typecheck
-
-```bash
-cd cre-workflow/cresolver-resolution
-yarn typecheck
-# or from root
-yarn workflow:typecheck
-```
-
-## Local Simulation
-
-For local simulation outside Docker:
-
-```bash
-# 1. Start a local Anvil node
-anvil --port 8547
-
-# 2. Start 3 agents (in separate terminals)
-cd agent
-AGENT_PORT=3001 AGENT_NAME=Alpha yarn start
-AGENT_PORT=3002 AGENT_NAME=Beta  yarn start
-AGENT_PORT=3003 AGENT_NAME=Gamma yarn start
-
-# 3. Deploy contracts + receiver and create demo markets
-yarn local:setup -- --receiver
-
-# 4. Copy addresses from scripts/demo-config.json into cre-workflow/cresolver-resolution/config.json
-#    - evms[0].market_address = contractAddress
-#    - evms[0].receiver_address = receiverAddress
-#    - agents[*].endpoint = your running agent ports
-
-# 5. Run CRE simulation from project settings root
-cd cre-workflow
-cre workflow simulate ./cresolver-resolution --target=local-simulation
-```
-
-`setup-demo.ts` is the shared bootstrap entrypoint for both local and E2E profiles.
-It deploys `CREsolverMarket`, optionally deploys `CREReceiver`, creates markets, funds workers, and writes the target config file.
-Resolution execution is validated through the CREReceiver path in E2E tests, and production workflow logic lives in `cre-workflow/cresolver-resolution`.
-
-If the simulation command fails before execution with auth/network errors, run:
-
-```bash
-cre update
-cre login
-```
-
-## Sepolia Workflow (No Anvil)
-
-If you do not want to use Anvil, run the workflow against Sepolia:
-
-```bash
-# 1) Make sure CREReceiver is deployed on Sepolia and authorized in CREsolverMarket.
-#    (You need market + receiver addresses)
-
-# 2) Start local agents (or point to your own agent URLs and ports)
-cd agent
-AGENT_PORT=3101 AGENT_NAME=Alpha yarn start
-AGENT_PORT=3102 AGENT_NAME=Beta  yarn start
-AGENT_PORT=3103 AGENT_NAME=Gamma yarn start
-cd ..
-
-# 3) Update cre-workflow/cresolver-resolution/config.json
-#    - evms[0].chain_selector = "16015286601757825753" (Sepolia)
-#    - evms[0].market_address = 0xYOUR_MARKET_ADDRESS
-#    - evms[0].receiver_address = 0xYOUR_RECEIVER_ADDRESS
-#    - agents[*].endpoint = your reachable agent URLs
-
-# 4) Simulate against Sepolia target
-yarn workflow:simulate:sepolia
-```
-
-### Sepolia Setup
-
-```bash
-# 1. Generate 3 worker wallets
-yarn sepolia:wallets
-
-# 2. Fill contracts/.env with DEPLOYER_KEY + SEPOLIA_RPC
-# 3. Canonical flow (register missing IDs + set agentURI + setAgentWallet + approve + verify)
-yarn sepolia:sync
-
-# 4. Normalize existing deployed agents without re-registering IDs
-yarn sepolia:normalize
-
-# 5. Verify wallets/agent auth and export public judge file
-yarn sepolia:verify --public-out sepolia-agents.public.json
-
-# 6. Strict on-chain audit (state + tokenURI template + agentWallet alignment)
-yarn sepolia:audit --min-eth 0.01
-
-# 7. Deploy contracts + create market + auto-join workers
-yarn sepolia:deploy
-```
-
-Metadata schema source of truth:
-- `scripts/agent-profile.ts` (registration-v1 JSON + on-chain metadata keys)
-Canonical agent sync implementation:
-- `scripts/sync-agents.ts` (full + normalize modes)
-
-## Project Structure
-
-```
-cresolver/
-├── package.json                 # Root scripts (yarn e2e)
-├── docker-compose.e2e.yml       # Anvil + 3 agents
-│
-├── contracts/                   # Foundry project
-│   ├── src/
-│   │   ├── CREsolverMarket.sol  # Market + staking + reputation
-│   │   ├── CREReceiver.sol      # DON report bridge
-│   │   └── interfaces/
-│   │       ├── IReceiver.sol
-│   │       └── ReceiverTemplate.sol
-│   ├── test/
-│   │   ├── CREsolverMarket.t.sol
-│   │   └── CREReceiver.t.sol
-│   └── script/
-│       └── Deploy.s.sol
-│
-├── agent/                       # Worker agent (TypeScript/Hono)
-│   ├── Dockerfile
-│   ├── src/
-│   │   ├── index.ts             # Hono server entry
-│   │   ├── config.ts            # Environment config
-│   │   ├── validation.ts        # Zod schemas
-│   │   ├── routes/
-│   │   │   ├── health.ts        # GET /health
-│   │   │   └── a2a.ts           # POST /a2a/resolve, /a2a/challenge
-│   │   └── services/
-│   │       ├── investigator.ts  # Mock + LLM investigation
-│   │       └── defender.ts      # Challenge defense
-│   └── tests/
-│       └── agent.test.ts
-│
-├── agent-cloudflare/            # Worker agent (Cloudflare Worker)
-│   ├── wrangler.toml
-│   ├── src/
-│   │   ├── index.ts             # Worker entry (fetch handler)
-│   │   ├── config.ts            # Cloudflare bindings config
-│   │   ├── validation.ts        # Zod schemas
-│   │   ├── routes/
-│   │   │   ├── health.ts        # GET /health
-│   │   │   └── a2a.ts           # POST /a2a/resolve, /a2a/challenge
-│   │   └── services/
-│   │       ├── investigator.ts  # Mock + LLM investigation
-│   │       └── defender.ts      # Challenge defense
-│   └── tests/
-│       └── agent.test.ts
-│
-├── cre-workflow/                # Chainlink CRE workflow
-│   ├── project.yaml             # CRE project metadata
-│   ├── secrets.yaml
-│   └── cresolver-resolution/
-│       ├── workflow.yaml        # Workflow definition
-│       ├── config.json          # Agent endpoints & EVM config
-│       ├── main.ts              # Entry (EVM Log + HTTP triggers)
-│       ├── types.ts             # Config & response schemas
-│       ├── agents.ts            # HTTP client for workers
-│       ├── evm.ts               # On-chain read/write client
-│       └── evaluate.ts          # Consensus & scoring logic
-│
-├── frontend/                    # Read-only Next.js frontend
-│   ├── app/                     # App Router pages
-│   ├── components/              # React components
-│   └── lib/                     # Config, ABIs, hooks
-│
-├── scripts/                     # Demo automation
-│   ├── setup-demo.ts            # Shared setup (local/e2e via --profile)
-│   ├── generate-wallets.ts      # Sepolia worker wallet generation
-│   ├── sync-agents.ts           # Canonical ERC-8004 register/normalize flow
-│   ├── audit-agents-onchain.ts  # Strict on-chain audit for ERC-8004 alignment
-│   ├── verify-agents.ts         # Wallet/auth verification + public export
-│   └── demo-config.json         # Generated by setup
-│
-├── e2e/                         # E2E test suite
-│   ├── vitest.e2e.config.ts
-│   ├── e2e.test.ts              # 18 integration tests
-│   ├── helpers.ts               # Polling & verification utils
-│   └── demo-config.json         # Generated by setup (profile e2e)
-│
-├── shared/
-│   └── types.ts                 # Shared TypeScript interfaces
-│
-└── docs/                        # Architecture documentation
-    ├── ARCHITECTURE.md           # Consolidated system architecture
-    ├── HACKATHON_ONE_PAGER.md    # Quick overview for judges
-    ├── JUDGE_SETUP.md            # Setup & verification guide
-    ├── DASHBOARD.md              # Frontend docs
-    └── PRIVACY_ROADMAP.md        # Privacy design
-```
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AGENT_PORT` | `3001` | Port the agent listens on |
-| `AGENT_NAME` | `"Worker"` | Agent display name |
-| `LLM_API_KEY` | `""` | LLM API key (empty = mock mode) |
-| `LLM_MODEL` | `"meta/llama-3.3-70b-instruct"` | LLM model for investigation (NVIDIA NIM) |
-| `RPC_URL` | `http://127.0.0.1:8547` | Ethereum JSON-RPC endpoint |
-| `KEYSTONE_FORWARDER` | `address(0)` | KeystoneForwarder contract (deploy script) |
-| `DIRECT_RESOLVER` | `address(0)` | Direct resolver signer (deploy script) |
-
-### Agent Modes
-
-- **Mock mode** (default): Deterministic responses, no API key needed. Ideal for testing.
-- **LLM mode**: Set `LLM_API_KEY` to your API key. The agent uses the model specified in `LLM_MODEL` (default: `meta/llama-3.3-70b-instruct` via NVIDIA NIM) to investigate questions and defend challenges.
-
-### CRE Workflow Config (`cre-workflow/cresolver-resolution/config.json`)
-
-```json
-{
-  "evms": [{
-    "chain_selector": 31337,
-    "market_address": "0x...",
-    "receiver_address": "0x...",
-    "gas_limit": 500000
-  }],
-  "agents": [
-    { "name": "Alpha", "endpoint": "http://127.0.0.1:3101" },
-    { "name": "Beta",  "endpoint": "http://127.0.0.1:3102" },
-    { "name": "Gamma", "endpoint": "http://127.0.0.1:3103" }
-  ]
-}
-```
-
-### Demo Config (`scripts/demo-config.json`)
-
-Generated by `yarn local:setup` (or `cd scripts && yarn setup`). Contains RPC URL, deployed contract address, worker wallets (Anvil HD keys), and market count. Do not commit — it is gitignored.
-
-## API Reference
-
-### `GET /health`
-
-```json
-{ "status": "ok", "agent": "Alpha", "mode": "mock" }
-```
-
-### `POST /a2a/resolve`
-
-```json
-// Request
-{ "market_id": 0, "question": "Will bitcoin reach 200k by end of 2026?" }
-
-// Response
-{ "determination": true, "confidence": 0.85, "evidence": "...", "sources": ["..."] }
-```
-
-### `POST /a2a/challenge`
-
-```json
-// Request
-{ "challenges": ["What evidence supports your determination?"] }
-
-// Response
-{ "responses": ["Based on market trends and..."] }
-```
+For local simulation, Sepolia setup, and step-by-step verification, see [docs/JUDGE_SETUP.md](docs/JUDGE_SETUP.md).
 
 ## Resolution Pipeline
 
@@ -454,43 +143,45 @@ The CRE workflow supports **two triggers** simultaneously:
 
 For the hackathon demo we use the **HTTP Trigger** to control timing and show the pipeline step-by-step. In production, the **EVM Log Trigger** makes the system fully autonomous — resolution starts the moment `requestResolution()` is called on-chain.
 
-## BFT Quorum
+### BFT Quorum
 
-CREsolver uses a **⌈2n/3⌉ Byzantine Fault Tolerant supermajority** for worker consensus — the same threshold used by Chainlink CRE's OCR protocol and classic BFT algorithms (PBFT, Tendermint, HotStuff).
+CREsolver requires a **⌈2n/3⌉ BFT supermajority** of worker responses before proceeding — the same threshold used by Chainlink OCR, PBFT, and Tendermint. With 3 workers, at least 2 must respond. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full quorum table.
 
-With `n` workers, the system tolerates up to `f = ⌊(n-1)/3⌋` faulty or unresponsive agents while guaranteeing safety (no conflicting resolutions) and liveness (progress despite failures).
+### Privacy Model
 
-| Workers | Quorum | Tolerance |
-|:-------:|:------:|:---------:|
-|    3    |   2    |     1     |
-|    4    |   3    |     1     |
-|    5    |   4    |     1     |
-|    6    |   4    |     2     |
-|    7    |   5    |     2     |
-|    8    |   6    |     2     |
-|    9    |   6    |     3     |
-|   10    |   7    |     3     |
+- **Confidential HTTP** — LLM calls use `ConfidentialHTTPClient` with DON Vault secret injection (API keys never leave the TEE)
+- **TEE isolation** — Individual agent determinations, evidence, and raw LLM scores only exist inside the enclave during execution
+- **Public results** — Resolution (YES/NO) and aggregated reputation scores are intentionally on-chain and auditable
 
-Implementation: [`resolution/quorum.ts`](cre-workflow/cresolver-resolution/resolution/quorum.ts)
+See [ARCHITECTURE.md § Transparency and Privacy](docs/ARCHITECTURE.md) for details on why we don't use `encryptOutput`.
+
+## Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AGENT_PORT` | `3001` | Port the agent listens on |
+| `AGENT_NAME` | `"Worker"` | Agent display name |
+| `LLM_API_KEY` | `""` | LLM API key (empty = mock mode) |
+| `LLM_MODEL` | `"meta/llama-3.3-70b-instruct"` | LLM model for investigation (NVIDIA NIM) |
+
+Agents run in **mock mode** by default (deterministic, no API key). Set `LLM_API_KEY` for real LLM investigation.
 
 ## Frontend
 
 Read-only frontend for visualizing CREsolver markets and agents on Sepolia. No wallet required.
 
 ```bash
-# Local development
-yarn frontend:dev
-
-# Build static export (deployable to Vercel)
-yarn frontend:build
+yarn frontend:dev    # local dev server
+yarn frontend:build  # static export (Vercel)
 ```
 
 See [docs/DASHBOARD.md](docs/DASHBOARD.md) for architecture and deployment details.
 
-## Detailed Documentation
+## Documentation
 
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — Consolidated system architecture, resolution pipeline, contracts, scoring
-- **[HACKATHON_ONE_PAGER.md](docs/HACKATHON_ONE_PAGER.md)** — Quick overview for judges (architecture + algorithm + E2E checklist)
-- **[JUDGE_SETUP.md](docs/JUDGE_SETUP.md)** — Setup and verification guide for judges
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System architecture, resolution pipeline, contracts, scoring, privacy model
+- **[HACKATHON_ONE_PAGER.md](docs/HACKATHON_ONE_PAGER.md)** — Quick overview for judges
+- **[JUDGE_SETUP.md](docs/JUDGE_SETUP.md)** — Setup, verification, and local simulation guide
+- **[AGENT_PROTOCOL.md](AGENT_PROTOCOL.md)** — A2A endpoint spec, scoring dimensions, ERC-8004 lifecycle
 - **[DASHBOARD.md](docs/DASHBOARD.md)** — Frontend architecture and deployment
-- **[PRIVACY_ROADMAP.md](docs/PRIVACY_ROADMAP.md)** — Phased privacy design (Confidential HTTP first, private rewards later)
+- **[PRIVACY_ROADMAP.md](docs/PRIVACY_ROADMAP.md)** — Phased privacy design

@@ -16,7 +16,7 @@ import "./lib/CREsolverMarketErrors.sol";
  *         resolution, and reputation in a single contract.
  */
 contract CREsolverMarket is Ownable, ReentrancyGuard {
-    // ─── ERC-8004 Registries (optional, address(0) = disabled) ────────
+    // ─── ERC-8004 Registries ────────
     IERC8004IdentityV1 public immutable identityRegistry;
     IERC8004Reputation public immutable reputationRegistry;
 
@@ -66,8 +66,8 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     ) Ownable(msg.sender) {
         bool identityUnset = _identityRegistry == address(0);
         bool reputationUnset = _reputationRegistry == address(0);
-        // Allow either fully disabled (both zero) or fully enabled (both non-zero).
-        if (identityUnset != reputationUnset) revert ZeroAddress();
+        // Cant be zero address.
+        if (identityUnset || reputationUnset) revert ZeroAddress();
         identityRegistry = IERC8004IdentityV1(_identityRegistry);
         reputationRegistry = IERC8004Reputation(_reputationRegistry);
         // Set owner as authorized resolver by default for testing; can be revoked later

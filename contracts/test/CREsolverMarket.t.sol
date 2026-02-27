@@ -658,4 +658,324 @@ contract CREsolverMarketTest is Test {
         vm.prank(resolver);
         marketWithRep.resolveMarket(0, workers, weights, dimScores, true);
     }
+
+    // ─── joinOnBehalf ────────────────────────────────────────────────
+
+    function test_joinOnBehalf_registers_agent_wallet() public {
+        market.createMarket{value: 1 ether}("Q?", 1 days);
+
+        address agentWalletAddr = makeAddr("agentWallet");
+        address ownerAddr = makeAddr("ownerAddr");
+
+        // Mock: owner is authorized for agentId 42
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)")), ownerAddr, uint256(42)),
+            abi.encode(true)
+        );
+        // Mock: getAgentWallet(42) returns the agent's wallet
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("getAgentWallet(uint256)")), uint256(42)),
+            abi.encode(agentWalletAddr)
+        );
+
+        vm.deal(ownerAddr, 1 ether);
+        vm.prank(ownerAddr);
+        market.joinOnBehalf{value: 0.05 ether}(0, 42);
+
+        // Worker registered is the agent wallet, NOT the owner
+        assertEq(market.stakes(0, agentWalletAddr), 0.05 ether);
+        assertEq(market.stakes(0, ownerAddr), 0);
+        assertEq(market.workerAgentIds(0, agentWalletAddr), 42);
+
+        address[] memory workers = market.getMarketWorkers(0);
+        assertEq(workers.length, 1);
+        assertEq(workers[0], agentWalletAddr);
+    }
+
+    function test_joinOnBehalf_reverts_not_agent_owner() public {
+        market.createMarket{value: 1 ether}("Q?", 1 days);
+
+        address nobody = makeAddr("nobody");
+
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)")), nobody, uint256(42)),
+            abi.encode(false)
+        );
+
+        vm.deal(nobody, 1 ether);
+        vm.prank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(NotAgentOwner.selector, nobody, 42));
+        market.joinOnBehalf{value: 0.05 ether}(0, 42);
+    }
+
+    function test_joinOnBehalf_reverts_wallet_not_set() public {
+        market.createMarket{value: 1 ether}("Q?", 1 days);
+
+        address ownerAddr = makeAddr("ownerAddr");
+
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)")), ownerAddr, uint256(42)),
+            abi.encode(true)
+        );
+        // getAgentWallet returns address(0)
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("getAgentWallet(uint256)")), uint256(42)),
+            abi.encode(address(0))
+        );
+
+        vm.deal(ownerAddr, 1 ether);
+        vm.prank(ownerAddr);
+        vm.expectRevert(abi.encodeWithSelector(AgentWalletNotSet.selector, 42));
+        market.joinOnBehalf{value: 0.05 ether}(0, 42);
+    }
+
+    function test_joinOnBehalf_reverts_market_not_active() public {
+        market.createMarket{value: 1 ether}("Q?", 1 days);
+        vm.warp(block.timestamp + 2 days);
+
+        address ownerAddr = makeAddr("ownerAddr");
+        address agentWalletAddr = makeAddr("agentWallet");
+
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)")), ownerAddr, uint256(42)),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("getAgentWallet(uint256)")), uint256(42)),
+            abi.encode(agentWalletAddr)
+        );
+
+        vm.deal(ownerAddr, 1 ether);
+        vm.prank(ownerAddr);
+        vm.expectRevert(abi.encodeWithSelector(MarketNotActive.selector, 0));
+        market.joinOnBehalf{value: 0.05 ether}(0, 42);
+    }
+
+    function test_joinOnBehalf_reverts_below_min_stake() public {
+        market.createMarket{value: 1 ether}("Q?", 1 days);
+
+        address ownerAddr = makeAddr("ownerAddr");
+        address agentWalletAddr = makeAddr("agentWallet");
+
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)")), ownerAddr, uint256(42)),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("getAgentWallet(uint256)")), uint256(42)),
+            abi.encode(agentWalletAddr)
+        );
+
+        vm.deal(ownerAddr, 1 ether);
+        vm.prank(ownerAddr);
+        vm.expectRevert(abi.encodeWithSelector(BelowMinStake.selector, 0.00001 ether, 0.0001 ether));
+        market.joinOnBehalf{value: 0.00001 ether}(0, 42);
+    }
+
+    function test_joinOnBehalf_reverts_already_joined() public {
+        market.createMarket{value: 1 ether}("Q?", 1 days);
+
+        address ownerAddr = makeAddr("ownerAddr");
+        address agentWalletAddr = makeAddr("agentWallet");
+
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)")), ownerAddr, uint256(42)),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("getAgentWallet(uint256)")), uint256(42)),
+            abi.encode(agentWalletAddr)
+        );
+
+        vm.deal(ownerAddr, 2 ether);
+        vm.startPrank(ownerAddr);
+        market.joinOnBehalf{value: 0.05 ether}(0, 42);
+
+        vm.expectRevert(abi.encodeWithSelector(AlreadyJoined.selector, 0, agentWalletAddr));
+        market.joinOnBehalf{value: 0.05 ether}(0, 42);
+        vm.stopPrank();
+    }
+
+    // ─── joinOnBehalf + resolveMarket integration ────────────────────
+
+    function test_joinOnBehalf_rewards_go_to_agent_wallet() public {
+        market.createMarket{value: 1 ether}("Q?", 1 days);
+
+        address ownerAddr = makeAddr("ownerAddr");
+        address agentWalletAddr = makeAddr("agentWallet");
+
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)")), ownerAddr, uint256(42)),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("getAgentWallet(uint256)")), uint256(42)),
+            abi.encode(agentWalletAddr)
+        );
+        // Mock giveFeedback for agentId=42 reputation calls during resolution
+        vm.mockCall(
+            mockReputation,
+            abi.encodeWithSelector(bytes4(keccak256("giveFeedback(uint256,int128,uint8,string,string,string,string,bytes32)"))),
+            abi.encode()
+        );
+
+        // Owner joins on behalf
+        vm.deal(ownerAddr, 1 ether);
+        vm.prank(ownerAddr);
+        market.joinOnBehalf{value: 0.05 ether}(0, 42);
+
+        // worker2 joins directly
+        vm.deal(worker2, 1 ether);
+        vm.prank(worker2);
+        market.joinMarket{value: 0.05 ether}(0, 0);
+
+        // Resolve
+        address[] memory workers = new address[](2);
+        workers[0] = agentWalletAddr;
+        workers[1] = worker2;
+
+        uint256[] memory weights = new uint256[](2);
+        weights[0] = 7000;
+        weights[1] = 3000;
+
+        uint8[] memory dimScores = new uint8[](6);
+        dimScores[0] = 80; dimScores[1] = 70; dimScores[2] = 90;
+        dimScores[3] = 60; dimScores[4] = 50; dimScores[5] = 70;
+
+        vm.prank(resolver);
+        market.resolveMarket(0, workers, weights, dimScores, true);
+
+        // Rewards go to agent wallet, not owner
+        assertEq(market.balances(agentWalletAddr), 0.7 ether + 0.05 ether);
+        assertEq(market.balances(ownerAddr), 0);
+        assertEq(market.balances(worker2), 0.3 ether + 0.05 ether);
+    }
+
+    // ─── withdrawFor ─────────────────────────────────────────────────
+
+    function test_withdrawFor_sends_to_owner() public {
+        market.createMarket{value: 1 ether}("Q?", 1 days);
+
+        address ownerAddr = makeAddr("ownerAddr");
+        address agentWalletAddr = makeAddr("agentWallet");
+
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)")), ownerAddr, uint256(42)),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("getAgentWallet(uint256)")), uint256(42)),
+            abi.encode(agentWalletAddr)
+        );
+        // Mock giveFeedback for agentId=42 reputation calls during resolution
+        vm.mockCall(
+            mockReputation,
+            abi.encodeWithSelector(bytes4(keccak256("giveFeedback(uint256,int128,uint8,string,string,string,string,bytes32)"))),
+            abi.encode()
+        );
+
+        // Join on behalf + another worker
+        vm.deal(ownerAddr, 1 ether);
+        vm.prank(ownerAddr);
+        market.joinOnBehalf{value: 0.05 ether}(0, 42);
+
+        vm.deal(worker1, 1 ether);
+        vm.prank(worker1);
+        market.joinMarket{value: 0.05 ether}(0, 0);
+
+        // Resolve — equal split
+        address[] memory workers = new address[](2);
+        workers[0] = agentWalletAddr;
+        workers[1] = worker1;
+        uint256[] memory weights = new uint256[](2);
+        weights[0] = 5000;
+        weights[1] = 5000;
+        uint8[] memory dimScores = new uint8[](6);
+        dimScores[0] = 80; dimScores[1] = 70; dimScores[2] = 60;
+        dimScores[3] = 90; dimScores[4] = 85; dimScores[5] = 75;
+
+        vm.prank(resolver);
+        market.resolveMarket(0, workers, weights, dimScores, true);
+
+        // Balance is on agentWallet
+        uint256 expectedBalance = 0.5 ether + 0.05 ether;
+        assertEq(market.balances(agentWalletAddr), expectedBalance);
+
+        // Owner withdraws for agent
+        uint256 ownerBalBefore = ownerAddr.balance;
+        vm.prank(ownerAddr);
+        market.withdrawFor(42);
+
+        // Funds sent to owner (msg.sender), not agent wallet
+        assertEq(ownerAddr.balance, ownerBalBefore + expectedBalance);
+        assertEq(market.balances(agentWalletAddr), 0);
+    }
+
+    function test_withdrawFor_reverts_not_agent_owner() public {
+        address nobody = makeAddr("nobody");
+
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)")), nobody, uint256(42)),
+            abi.encode(false)
+        );
+
+        vm.prank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(NotAgentOwner.selector, nobody, 42));
+        market.withdrawFor(42);
+    }
+
+    function test_withdrawFor_reverts_wallet_not_set() public {
+        address ownerAddr = makeAddr("ownerAddr");
+
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)")), ownerAddr, uint256(42)),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("getAgentWallet(uint256)")), uint256(42)),
+            abi.encode(address(0))
+        );
+
+        vm.prank(ownerAddr);
+        vm.expectRevert(abi.encodeWithSelector(AgentWalletNotSet.selector, 42));
+        market.withdrawFor(42);
+    }
+
+    function test_withdrawFor_reverts_no_balance() public {
+        address ownerAddr = makeAddr("ownerAddr");
+        address agentWalletAddr = makeAddr("agentWallet");
+
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)")), ownerAddr, uint256(42)),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("getAgentWallet(uint256)")), uint256(42)),
+            abi.encode(agentWalletAddr)
+        );
+
+        vm.prank(ownerAddr);
+        vm.expectRevert(NoBalance.selector);
+        market.withdrawFor(42);
+    }
 }

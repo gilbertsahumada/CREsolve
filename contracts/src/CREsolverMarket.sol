@@ -110,24 +110,45 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Join an active market as a worker by staking ETH
+     * @notice Join a market as a worker. The caller (msg.sender) must be the agent's wallet.
+     *         Use this when the agent itself sends the transaction.
      * @param marketId The market to join
-     * @param agentId The ERC-8004 agent ID (0 if identity registry is disabled)
+     * @param agentId The ERC-8004 agent ID owned/operated by msg.sender
      */
     function joinMarket(uint256 marketId, uint256 agentId) external payable {
+        if (!identityRegistry.isAuthorizedOrOwner(msg.sender, agentId)) revert NotAgentOwner(msg.sender, agentId);
+        _joinMarket(marketId, agentId, msg.sender);
+    }
+
+    /**
+     * @notice Join a market on behalf of an agent. The caller must be the agent's owner/approved.
+     *         Resolves the agent's canonical wallet via getAgentWallet() and registers that address
+     *         as the worker — not msg.sender.
+     * @param marketId The market to join
+     * @param agentId The ERC-8004 agent ID
+     */
+    function joinOnBehalf(uint256 marketId, uint256 agentId) external payable {
+        if (!identityRegistry.isAuthorizedOrOwner(msg.sender, agentId)) revert NotAgentOwner(msg.sender, agentId);
+        address agentWallet = identityRegistry.getAgentWallet(agentId);
+        if (agentWallet == address(0)) revert AgentWalletNotSet(agentId);
+        _joinMarket(marketId, agentId, agentWallet);
+    }
+
+    /**
+     * @dev Internal join logic. Registers `worker` as the canonical address in the market.
+     */
+    function _joinMarket(uint256 marketId, uint256 agentId, address worker) internal {
         if (!isMarketActive(marketId)) revert MarketNotActive(marketId);
         if (msg.value < minStake) revert BelowMinStake(msg.value, minStake);
-        if (stakes[marketId][msg.sender] > 0) revert AlreadyJoined(marketId, msg.sender);
+        if (stakes[marketId][worker] > 0) revert AlreadyJoined(marketId, worker);
         uint256 workerCount = _marketWorkers[marketId].length;
         if (workerCount >= MAX_WORKERS) revert TooManyWorkers(workerCount + 1, MAX_WORKERS);
-        if (!identityRegistry.isAuthorizedOrOwner(msg.sender, agentId)) revert NotAgentOwner(msg.sender, agentId);
 
-        workerAgentIds[marketId][msg.sender] = agentId;
+        workerAgentIds[marketId][worker] = agentId;
+        stakes[marketId][worker] = msg.value;
+        _marketWorkers[marketId].push(worker);
 
-        stakes[marketId][msg.sender] = msg.value;
-        _marketWorkers[marketId].push(msg.sender);
-
-        emit WorkerJoined(marketId, msg.sender, msg.value, agentId);
+        emit WorkerJoined(marketId, worker, msg.value, agentId);
     }
 
     /**
@@ -284,6 +305,26 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         require(success, "Transfer failed");
 
         emit Withdrawal(msg.sender, amount);
+    }
+
+    /**
+     * @notice Withdraw balance on behalf of an agent (owner/authorized only).
+     *         Sends funds to msg.sender (the owner), not the agent wallet.
+     * @param agentId The ERC-8004 agent ID
+     */
+    function withdrawFor(uint256 agentId) external nonReentrant {
+        if (!identityRegistry.isAuthorizedOrOwner(msg.sender, agentId)) revert NotAgentOwner(msg.sender, agentId);
+        address agentWallet = identityRegistry.getAgentWallet(agentId);
+        if (agentWallet == address(0)) revert AgentWalletNotSet(agentId);
+
+        uint256 amount = balances[agentWallet];
+        if (amount == 0) revert NoBalance();
+
+        balances[agentWallet] = 0;
+        (bool success, ) = msg.sender.call{value: amount}("");
+        require(success, "Transfer failed");
+
+        emit Withdrawal(agentWallet, amount);
     }
 
     /**

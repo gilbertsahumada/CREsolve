@@ -21,3 +21,5 @@ error ZeroAddress();
 error DuplicateWorker(uint256 marketId, address worker);
 error WorkerSetMismatch(uint256 marketId, uint256 expected, uint256 provided);
 error ZeroTotalWeight(uint256 marketId);
+error AgentWalletNotSet(uint256 agentId);
+

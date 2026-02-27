@@ -8,7 +8,7 @@ import { getMarketStatus, formatRelativeDeadline } from "@/lib/types";
 import { useBettingPool, useWallet, useEthPrice, waitForTx } from "@/lib/hooks";
 import { checkAgentOwnership, getAgentWallet } from "@/lib/blockchain";
 import { CONTRACTS, AGENTS, etherscanAddress, trust8004Url } from "@/lib/config";
-import { buyYesAbi, buyNoAbi, settleAbi, claimAbi, joinMarketAbi, requestResolutionAbi } from "@/lib/contracts";
+import { buyYesAbi, buyNoAbi, settleAbi, claimAbi, joinMarketAbi, joinOnBehalfAbi, requestResolutionAbi } from "@/lib/contracts";
 import StatusBadge from "./StatusBadge";
 
 type TxState =
@@ -152,9 +152,14 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
     if (!id || ownershipStatus !== "valid") return;
     if (!window.ethereum || !address) return;
 
+    // Decide which contract function to use
+    const isAgentWallet = agentWallet && address && agentWallet.toLowerCase() === address.toLowerCase();
+    const abi = isAgentWallet ? joinMarketAbi : joinOnBehalfAbi;
+    const fnName = isAgentWallet ? "joinMarket" : "joinOnBehalf";
+
     const data = encodeFunctionData({
-      abi: joinMarketAbi,
-      functionName: "joinMarket",
+      abi,
+      functionName: fnName,
       args: [BigInt(market.id), BigInt(id)],
     });
     const value = parseEther("0.0001");
@@ -391,9 +396,17 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
                         </a>
                       </div>
                     )}
-                    {agentWallet && address && agentWallet.toLowerCase() !== address.toLowerCase() && (
-                      <div className="flex items-center gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-400">
-                        <span>Note: Your connected wallet will be registered as the worker, not the agent&apos;s wallet.</span>
+                    {agentWallet && address && (
+                      <div className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-xs ${
+                        agentWallet.toLowerCase() === address.toLowerCase()
+                          ? "bg-blue-500/10 border border-blue-500/20 text-blue-400"
+                          : "bg-blue-500/10 border border-blue-500/20 text-blue-400"
+                      }`}>
+                        <span>
+                          {agentWallet.toLowerCase() === address.toLowerCase()
+                            ? "Joining as agent directly"
+                            : `Joining on behalf — agent wallet ${agentWallet.slice(0, 6)}...${agentWallet.slice(-4)} will be registered`}
+                        </span>
                       </div>
                     )}
                   </div>

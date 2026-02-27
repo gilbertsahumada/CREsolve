@@ -235,6 +235,19 @@ export const joinMarketAbi = [
   },
 ] as const;
 
+export const joinOnBehalfAbi = [
+  {
+    name: "joinOnBehalf",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [
+      { name: "marketId", type: "uint256" },
+      { name: "agentId", type: "uint256" },
+    ],
+    outputs: [],
+  },
+] as const;
+
 export const requestResolutionAbi = [
   {
     name: "requestResolution",

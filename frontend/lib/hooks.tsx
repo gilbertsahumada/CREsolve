@@ -6,11 +6,12 @@ import { CHAIN, CONTRACTS, AGENTS, RPC_URL } from "./config";
 import {
   getMarketAbi,
   getMarketWorkersAbi,
-  getReputationAbi,
+  getSummaryAbi,
+  getClientsAbi,
   marketCountAbi,
   getPoolAbi,
 } from "./contracts";
-import type { Market, AgentInfo, Reputation, BettingPool } from "./types";
+import type { Market, AgentInfo, Reputation, BettingPool, WorkerInfo } from "./types";
 
 // ─── Shared viem client ──────────────────────────────────────────────────────
 
@@ -18,6 +19,45 @@ const client = createPublicClient({
   chain: CHAIN,
   transport: http(RPC_URL),
 });
+
+// ─── Fetch reputation from ERC-8004 ReputationRegistry ──────────────────────
+
+const REPUTATION_TAGS = ["resolution_quality", "source_quality", "analysis_depth"] as const;
+
+async function fetchReputation(agentId: number): Promise<Reputation> {
+  // Discover which addresses actually submitted feedback for this agent
+  const feedbackClients = (await client.readContract({
+    address: CONTRACTS.reputationRegistry,
+    abi: getClientsAbi,
+    functionName: "getClients",
+    args: [BigInt(agentId)],
+  })) as Address[];
+
+  if (feedbackClients.length === 0) {
+    return { resQuality: 0, srcQuality: 0, analysisDepth: 0, count: 0 };
+  }
+
+  const [res, src, depth] = await Promise.all(
+    REPUTATION_TAGS.map((tag) =>
+      client.readContract({
+        address: CONTRACTS.reputationRegistry,
+        abi: getSummaryAbi,
+        functionName: "getSummary",
+        args: [BigInt(agentId), feedbackClients, tag, "cresolver"],
+      })
+    )
+  );
+
+  const val = (r: typeof res) => Number((r as [bigint, bigint, number])[1]);
+  const cnt = (r: typeof res) => Number((r as [bigint, bigint, number])[0]);
+
+  return {
+    resQuality: val(res),
+    srcQuality: val(src),
+    analysisDepth: val(depth),
+    count: cnt(res),
+  };
+}
 
 // ─── waitForTx ───────────────────────────────────────────────────────────────
 
@@ -217,6 +257,29 @@ export function useMarkets() {
             resolution: boolean;
           };
 
+          const workerAddrs = workers as Address[];
+          const workerInfo: WorkerInfo[] = await Promise.all(
+            workerAddrs.map(async (addr) => {
+              const agent = AGENTS.find(
+                (a) => a.address.toLowerCase() === addr.toLowerCase()
+              );
+              if (!agent) {
+                return {
+                  address: addr,
+                  reputation: { resQuality: 0, srcQuality: 0, analysisDepth: 0, count: 0 },
+                };
+              }
+              try {
+                return { address: addr, reputation: await fetchReputation(agent.agentId) };
+              } catch {
+                return {
+                  address: addr,
+                  reputation: { resQuality: 0, srcQuality: 0, analysisDepth: 0, count: 0 },
+                };
+              }
+            })
+          );
+
           results.push({
             id: i,
             question: m.question,
@@ -225,7 +288,8 @@ export function useMarkets() {
             creator: m.creator,
             resolved: m.resolved,
             resolution: m.resolution,
-            workers: workers as Address[],
+            workers: workerAddrs,
+            workerInfo,
           });
         } catch {
           // Skip markets that revert (e.g. deleted)
@@ -260,25 +324,8 @@ export function useReputation() {
       const results = await Promise.all(
         AGENTS.map(async (agent) => {
           try {
-            const rep = (await client.readContract({
-              address: CONTRACTS.market,
-              abi: getReputationAbi,
-              functionName: "getReputation",
-              args: [agent.address],
-            })) as [bigint, bigint, bigint, bigint];
-
-            const reputation: Reputation = {
-              resQuality: Number(rep[0]),
-              srcQuality: Number(rep[1]),
-              analysisDepth: Number(rep[2]),
-              count: Number(rep[3]),
-            };
-
-            return {
-              ...agent,
-              reputation,
-              healthy: null as boolean | null,
-            };
+            const reputation = await fetchReputation(agent.agentId);
+            return { ...agent, reputation, healthy: null as boolean | null };
           } catch {
             return {
               ...agent,

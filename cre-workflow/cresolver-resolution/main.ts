@@ -109,7 +109,15 @@ function resolveMarket(
   const question = readMarketQuestion(runtime, evmClient, marketId);
   const { workers, report } = readMarketWorkers(runtime, evmClient, marketId);
 
+  // Build the full on-chain worker address list (responsive + discarded)
+  // so the report always includes ALL registered workers.
+  const allOnChainWorkers = [
+    ...workers.map((w) => w.address),
+    ...report.discarded.map((d) => d.address),
+  ];
+
   runtime.log(`Market question: "${question.slice(0, 80)}"`);
+  runtime.log(`On-chain workers: ${allOnChainWorkers.length}, discoverable: ${workers.length}`);
 
   // Step 2: AI pipeline — query agents (or mock), challenge, evaluate with LLM
   let determinations;
@@ -143,7 +151,7 @@ function resolveMarket(
   }
 
   const evaluations = evaluateWithLLM(runtime, question, determinations, challengeResults);
-  const resolution = computeResolution(determinations, evaluations, activeWorkers);
+  const resolution = computeResolution(determinations, evaluations, activeWorkers, allOnChainWorkers);
 
   // Step 3: Submit resolution on-chain via signed report
   submitResolution(runtime, evmClient, marketId, resolution);

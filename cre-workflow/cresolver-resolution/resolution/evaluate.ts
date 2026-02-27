@@ -11,6 +11,7 @@ export function computeResolution(
   determinations: WorkerDetermination[],
   evaluations: WorkerEvaluation[],
   workers: WorkerData[],
+  allOnChainWorkers: string[],
 ): ResolutionResult {
   const evalMap = new Map(evaluations.map((e) => [e.workerAddress, e]));
   const workerMap = new Map(workers.map((w) => [w.address, w]));
@@ -45,9 +46,11 @@ export function computeResolution(
   const resolution = yesWeight >= noWeight;
 
   // Blinded weights for on-chain distribution
+  // Workers that responded get their computed weight; non-responsive workers get 0
   const resultWorkers: string[] = [];
   const resultWeights: bigint[] = [];
   const resultDimScores: number[] = [];
+  const includedSet = new Set<string>();
 
   for (const det of determinations) {
     const ev = evalMap.get(det.workerAddress);
@@ -74,6 +77,18 @@ export function computeResolution(
       ev.sourceQuality,
       ev.analysisDepth,
     );
+    includedSet.add(det.workerAddress.toLowerCase());
+  }
+
+  // Include non-responsive workers with weight=0 and dimScores=[0,0,0]
+  // so the report matches the on-chain worker set exactly.
+  // These workers receive no reward for failing to respond.
+  for (const addr of allOnChainWorkers) {
+    if (!includedSet.has(addr.toLowerCase())) {
+      resultWorkers.push(addr);
+      resultWeights.push(0n);
+      resultDimScores.push(0, 0, 0);
+    }
   }
 
   return {

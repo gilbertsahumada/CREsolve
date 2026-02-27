@@ -198,6 +198,9 @@ contract CREsolverMarket is Ownable, ReentrancyGuard {
         }
     }
 
+    // TODO: Workers with weight=0 (non-responsive A2A endpoints) currently get
+    // their stake returned but no reward. Consider slashing their stake as a
+    // penalty for failing to respond — they should not profit from inactivity.
     function _distributeRewards(
         uint256 marketId,
         address[] calldata workers,

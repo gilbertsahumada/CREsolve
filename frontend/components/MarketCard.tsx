@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { formatEther, parseEther, encodeFunctionData } from "viem";
-import { Minus, Plus, ExternalLink, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Minus, Plus, ExternalLink, Loader2, CheckCircle2, XCircle, ChevronDown } from "lucide-react";
 import type { Market, MarketStatus } from "@/lib/types";
 import { getMarketStatus, formatRelativeDeadline } from "@/lib/types";
 import { useBettingPool, useWallet, useEthPrice, waitForTx } from "@/lib/hooks";
-import { CONTRACTS } from "@/lib/config";
+import { CONTRACTS, AGENTS, etherscanAddress } from "@/lib/config";
 import { buyYesAbi, buyNoAbi, settleAbi, claimAbi } from "@/lib/contracts";
 import StatusBadge from "./StatusBadge";
 
@@ -25,6 +25,7 @@ export default function MarketCard({ market }: { market: Market }) {
   const { pool, refresh: refreshPool } = useBettingPool(market.id);
   const ethPrice = useEthPrice();
 
+  const [showWorkers, setShowWorkers] = useState(false);
   const [usdAmount, setUsdAmount] = useState<number>(10);
   const [txState, setTxState] = useState<TxState>({ status: "idle" });
   const txPending = txState.status === "pending" || txState.status === "confirming";
@@ -129,14 +130,18 @@ export default function MarketCard({ market }: { market: Market }) {
             {rewardStr} ETH Pool
           </span>
 
-          <span className="flex items-center gap-1.5 text-slate-400">
+          <button
+            onClick={() => setShowWorkers((v) => !v)}
+            className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors"
+          >
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4-4v2" />
               <circle cx="9" cy="7" r="4" />
               <path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
             </svg>
             {market.workers.length} workers
-          </span>
+            <ChevronDown className={`h-3 w-3 transition-transform ${showWorkers ? "rotate-180" : ""}`} />
+          </button>
 
           {totalBets > zero && (
             <span className="flex items-center gap-1.5 text-slate-400">
@@ -167,6 +172,47 @@ export default function MarketCard({ market }: { market: Market }) {
             )}
           </span>
         </div>
+
+        {/* Expandable Workers Panel */}
+        {showWorkers && market.workerInfo.length > 0 && (
+          <div className="mb-5 space-y-3 rounded-lg border border-navy-700/50 bg-navy-900/30 p-3">
+            {market.workerInfo.map((w) => {
+              const agent = AGENTS.find(
+                (a) => a.address.toLowerCase() === w.address.toLowerCase()
+              );
+              const label = agent?.name ?? `${w.address.slice(0, 6)}...${w.address.slice(-4)}`;
+              return (
+                <div key={w.address} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/20 text-[9px] font-bold text-accent">
+                        {label[0]}
+                      </div>
+                      <a
+                        href={etherscanAddress(w.address)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-medium text-slate-200 hover:text-accent transition-colors"
+                      >
+                        {label}
+                      </a>
+                    </div>
+                    {w.reputation.count > 0 && (
+                      <span className="text-[10px] text-slate-500">
+                        {w.reputation.count} resolution{w.reputation.count !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <MiniRepBar label="Res" value={w.reputation.resQuality} color="#3b82f6" />
+                    <MiniRepBar label="Src" value={w.reputation.srcQuality} color="#8b5cf6" />
+                    <MiniRepBar label="Depth" value={w.reputation.analysisDepth} color="#06b6d4" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Betting Section — Open Markets */}
         {status === "open" && binaryMarketDeployed && (
@@ -328,6 +374,22 @@ export default function MarketCard({ market }: { market: Market }) {
             <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
           </svg>
         </a>
+      </div>
+    </div>
+  );
+}
+
+// ─── Mini Reputation Bar ─────────────────────────────────────────────────────
+
+function MiniRepBar({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="space-y-0.5">
+      <div className="flex justify-between text-[9px]">
+        <span className="text-slate-500">{label}</span>
+        <span className="text-slate-400">{value}</span>
+      </div>
+      <div className="h-1 w-full overflow-hidden rounded-full bg-navy-700">
+        <div className="h-full rounded-full transition-all" style={{ width: `${value}%`, backgroundColor: color }} />
       </div>
     </div>
   );

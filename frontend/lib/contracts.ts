@@ -60,6 +60,35 @@ export const getReputationAbi = [
   },
 ] as const;
 
+export const getSummaryAbi = [
+  {
+    name: "getSummary",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "agentId", type: "uint256" },
+      { name: "clientAddresses", type: "address[]" },
+      { name: "tag1", type: "string" },
+      { name: "tag2", type: "string" },
+    ],
+    outputs: [
+      { name: "count", type: "uint64" },
+      { name: "summaryValue", type: "int128" },
+      { name: "summaryValueDecimals", type: "uint8" },
+    ],
+  },
+] as const;
+
+export const getClientsAbi = [
+  {
+    name: "getClients",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "agentId", type: "uint256" }],
+    outputs: [{ type: "address[]" }],
+  },
+] as const;
+
 export const marketCountAbi = [
   {
     name: "marketCount",

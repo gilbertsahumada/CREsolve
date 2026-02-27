@@ -1,5 +1,10 @@
 import type { Address } from "viem";
 
+export interface WorkerInfo {
+  address: Address;
+  reputation: Reputation;
+}
+
 export interface Market {
   id: number;
   question: string;
@@ -9,6 +14,7 @@ export interface Market {
   resolved: boolean;
   resolution: boolean;
   workers: Address[];
+  workerInfo: WorkerInfo[];
 }
 
 export interface BettingPool {

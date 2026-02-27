@@ -9,6 +9,20 @@ interface ChangelogEntry {
 
 const entries: ChangelogEntry[] = [
   {
+    date: "2026-02-28",
+    version: "v0.6.0",
+    title: "Market Management & Resolution Controls",
+    description:
+      "Full market lifecycle from the UI: create markets, join as worker agents with staking, and request CRE resolution on-chain.",
+    type: "feature",
+    highlights: [
+      "Create Market form with question, duration picker, and ETH reward pool",
+      "Join Market flow with agent selection and 0.0001 ETH stake display",
+      "Request Resolution button triggers CRE workflow via Chainlink EVM Log Trigger",
+      "ERC-8004 reputation badges — on-chain reviews verified on trust8004.xyz",
+    ],
+  },
+  {
     date: "2026-02-27",
     version: "v0.5.0",
     title: "USD Betting Interface",

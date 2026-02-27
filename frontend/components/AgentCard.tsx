@@ -82,9 +82,12 @@ export default function AgentCard({ agent }: { agent: AgentInfo }) {
           href={trust8004Url(agent.agentId)}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-accent hover:text-blue-300 transition-colors"
+          className="inline-flex items-center gap-1 rounded-full border border-accent/20 bg-accent/5 px-2 py-0.5 text-accent hover:bg-accent/10 transition-colors"
         >
-          Trust8004
+          <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+          ERC-8004 Verified
         </a>
       </div>
 

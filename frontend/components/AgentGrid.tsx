@@ -10,9 +10,17 @@ export default function AgentGrid() {
   return (
     <section>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-          Worker Agents
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+            Worker Agents
+          </h2>
+          <span className="inline-flex items-center gap-1 rounded-full border border-accent/20 bg-accent/5 px-2 py-0.5 text-[10px] font-medium text-accent">
+            <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            ERC-8004
+          </span>
+        </div>
         <QuorumIndicator total={agents.length || 3} />
       </div>
 

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useMarkets } from "@/lib/hooks";
 import { getMarketStatus, sortMarkets, type MarketStatus } from "@/lib/types";
 import MarketCard from "./MarketCard";
+import CreateMarketModal from "./CreateMarketModal";
 
 type Filter = "all" | MarketStatus;
 
@@ -17,6 +18,7 @@ const FILTERS: { key: Filter; label: string }[] = [
 export default function MarketList() {
   const { markets, loading, error, refresh } = useMarkets();
   const [filter, setFilter] = useState<Filter>("all");
+  const [showCreate, setShowCreate] = useState(false);
 
   const sorted = useMemo(() => sortMarkets(markets), [markets]);
 
@@ -41,13 +43,21 @@ export default function MarketList() {
         <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
           Markets
         </h2>
-        <button
-          onClick={refresh}
-          disabled={loading}
-          className="text-xs text-accent hover:text-blue-300 transition-colors disabled:opacity-50"
-        >
-          {loading ? "Loading..." : "Refresh"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="rounded-lg bg-accent/20 px-3 py-1.5 text-xs font-semibold text-accent transition-colors hover:bg-accent/30"
+          >
+            + Create Market
+          </button>
+          <button
+            onClick={refresh}
+            disabled={loading}
+            className="text-xs text-accent hover:text-blue-300 transition-colors disabled:opacity-50"
+          >
+            {loading ? "Loading..." : "Refresh"}
+          </button>
+        </div>
       </div>
 
       {/* Filter tabs */}
@@ -87,9 +97,14 @@ export default function MarketList() {
 
       {/* Empty state */}
       {!loading && !error && markets.length === 0 && (
-        <div className="rounded-lg border border-navy-700 bg-navy-800/30 p-8 text-center text-sm text-slate-500">
-          No markets found on Sepolia. Create one with{" "}
-          <code className="text-slate-400">yarn sepolia:demo-markets</code>
+        <div className="rounded-lg border border-navy-700 bg-navy-800/30 p-8 text-center">
+          <p className="mb-3 text-sm text-slate-500">No markets found on Sepolia.</p>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="rounded-lg bg-accent/20 px-4 py-2 text-sm font-semibold text-accent transition-colors hover:bg-accent/30"
+          >
+            Create Your First Market
+          </button>
         </div>
       )}
 
@@ -104,9 +119,16 @@ export default function MarketList() {
       {/* Market cards */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {filtered.map((market) => (
-          <MarketCard key={market.id} market={market} />
+          <MarketCard key={market.id} market={market} onRefresh={refresh} />
         ))}
       </div>
+
+      {/* Create Market Modal */}
+      <CreateMarketModal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        onSuccess={refresh}
+      />
     </section>
   );
 }

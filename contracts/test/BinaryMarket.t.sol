@@ -360,4 +360,82 @@ contract BinaryMarketTest is Test {
         vm.expectRevert("Zero address");
         new BinaryMarket(address(0));
     }
+
+    // ─── setCoreMarket ───────────────────────────────────────────────────
+
+    function test_setCoreMarket_updates() public {
+        address newMarket = makeAddr("newMarket");
+
+        vm.expectEmit(true, true, false, false);
+        emit BinaryMarket.CoreMarketUpdated(address(core), newMarket);
+
+        binary.setCoreMarket(newMarket);
+
+        assertEq(address(binary.coreMarket()), newMarket);
+    }
+
+    function test_setCoreMarket_only_owner() public {
+        address nobody = makeAddr("nobody");
+        vm.prank(nobody);
+        vm.expectRevert();
+        binary.setCoreMarket(makeAddr("newMarket"));
+    }
+
+    function test_setCoreMarket_reverts_zero_address() public {
+        vm.expectRevert("Zero address");
+        binary.setCoreMarket(address(0));
+    }
+
+    function test_setCoreMarket_routes_to_new_market() public {
+        // Deploy a second CREsolverMarket and BinaryMarket pointing to it
+        CREsolverMarket core2 = new CREsolverMarket(mockIdentity, mockReputation);
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)"))),
+            abi.encode(true)
+        );
+        core2.setAuthorizedResolver(resolver, true);
+
+        // Create market on core2
+        core2.createMarket{value: 0.1 ether}("New question?", 1 days);
+        address w1 = makeAddr("worker1");
+        address w2 = makeAddr("worker2");
+        vm.deal(w1, 1 ether);
+        vm.deal(w2, 1 ether);
+        vm.prank(w1);
+        core2.joinMarket{value: 0.001 ether}(0, 0);
+        vm.prank(w2);
+        core2.joinMarket{value: 0.001 ether}(0, 0);
+
+        // Point existing binary to core2
+        binary.setCoreMarket(address(core2));
+
+        // Bet on market #0 (now reads from core2)
+        vm.prank(alice);
+        binary.buyYes{value: 1 ether}(0);
+
+        (uint256 yesTotal,,,) = binary.getPool(0);
+        assertEq(yesTotal, 1 ether);
+
+        // Resolve core2's market, settle on binary
+        address[] memory workers = new address[](2);
+        workers[0] = w1;
+        workers[1] = w2;
+        uint256[] memory weights = new uint256[](2);
+        weights[0] = 5000;
+        weights[1] = 5000;
+        uint8[] memory dimScores = new uint8[](6);
+        dimScores[0] = 80; dimScores[1] = 70; dimScores[2] = 60;
+        dimScores[3] = 80; dimScores[4] = 70; dimScores[5] = 60;
+
+        vm.prank(resolver);
+        core2.resolveMarket(0, workers, weights, dimScores, true);
+
+        vm.prank(settler);
+        binary.settle(0);
+
+        (,, bool settled, bool outcome) = binary.getPool(0);
+        assertTrue(settled);
+        assertTrue(outcome);
+    }
 }

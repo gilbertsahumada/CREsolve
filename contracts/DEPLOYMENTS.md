@@ -99,7 +99,10 @@ curl -X POST <WORKFLOW_URL> -d '{"market_id": <NEW_MARKET_ID>}'
 |---|---|---|---:|---|
 | ~~CREsolverMarket v1~~ | Sepolia | ~~`0x499B178A5152Fb658dDbA1622B9B29Bb88561863`~~ | 10322132 | ~~`0x03ac...5c6c`~~ |
 | ~~CREReceiver v1~~ | Sepolia | ~~`0x81B324C2FA2c092d17752E5998b62A8CceaD2eA4`~~ | 10322133 | ~~`0xe506...453f`~~ |
-| CREsolverMarket v2 | Sepolia | [`0x9C09e483ecF768392306b358a8609B04e9b28fbb`](https://sepolia.etherscan.io/address/0x9C09e483ecF768392306b358a8609B04e9b28fbb) | — | — |
-| CREReceiver v2 | Sepolia | [`0x33c8832E146CFEc249459a4cEe8ba5DCF6d8AC59`](https://sepolia.etherscan.io/address/0x33c8832E146CFEc249459a4cEe8ba5DCF6d8AC59) | — | — |
-| BinaryMarket | Sepolia | [`0x56bd6A11bC23e48f0fc0BeA99A9DDCb899A3617c`](https://sepolia.etherscan.io/address/0x56bd6A11bC23e48f0fc0BeA99A9DDCb899A3617c) | — | — |
+| ~~CREsolverMarket v2~~ | Sepolia | ~~`0x9C09e483ecF768392306b358a8609B04e9b28fbb`~~ | — | — |
+| ~~CREReceiver v2~~ | Sepolia | ~~`0x33c8832E146CFEc249459a4cEe8ba5DCF6d8AC59`~~ | — | — |
+| ~~BinaryMarket v1~~ | Sepolia | ~~`0x56bd6A11bC23e48f0fc0BeA99A9DDCb899A3617c`~~ | — | — |
+| CREsolverMarket v3 | Sepolia | [`0x6E61036B4627e7bD0F8157Cf26dafbCCBE43DA96`](https://sepolia.etherscan.io/address/0x6E61036B4627e7bD0F8157Cf26dafbCCBE43DA96) | — | — |
+| CREReceiver v3 | Sepolia | [`0xFF10923B5Adbb688BDD789E38b2E8b673e96D1F9`](https://sepolia.etherscan.io/address/0xFF10923B5Adbb688BDD789E38b2E8b673e96D1F9) | — | — |
+| BinaryMarket v2 | Sepolia | [`0x7fbAD3cFc3cDa040C208d91c56FcB66dabe184a1`](https://sepolia.etherscan.io/address/0x7fbAD3cFc3cDa040C208d91c56FcB66dabe184a1) | — | — |
 

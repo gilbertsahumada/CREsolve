@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { formatEther, parseEther, encodeFunctionData } from "viem";
+import { Minus, Plus } from "lucide-react";
 import type { Market, MarketStatus } from "@/lib/types";
 import { getMarketStatus, formatRelativeDeadline } from "@/lib/types";
-import { useBettingPool, useWallet } from "@/lib/hooks";
+import { useBettingPool, useWallet, useEthPrice } from "@/lib/hooks";
 import { CONTRACTS } from "@/lib/config";
 import { buyYesAbi, buyNoAbi, settleAbi, claimAbi } from "@/lib/contracts";
 import StatusBadge from "./StatusBadge";
@@ -15,9 +16,13 @@ export default function MarketCard({ market }: { market: Market }) {
   const rewardStr = formatEther(market.rewardPool);
   const { address } = useWallet();
   const { pool, refresh: refreshPool } = useBettingPool(market.id);
+  const ethPrice = useEthPrice();
 
-  const [betAmount, setBetAmount] = useState("0.01");
+  const [usdAmount, setUsdAmount] = useState<number>(10);
   const [txPending, setTxPending] = useState(false);
+
+  // Calculate ETH equivalent
+  const ethAmount = ethPrice ? (usdAmount / ethPrice).toFixed(6) : "0";
 
   // Calculate probabilities from pool data
   const zero = BigInt(0);
@@ -58,13 +63,15 @@ export default function MarketCard({ market }: { market: Market }) {
   }
 
   function handleBuyYes() {
+    if (!ethPrice || Number(ethAmount) <= 0) return;
     const data = encodeFunctionData({ abi: buyYesAbi, functionName: "buyYes", args: [BigInt(market.id)] });
-    sendTx(CONTRACTS.binaryMarket, data, parseEther(betAmount));
+    sendTx(CONTRACTS.binaryMarket, data, parseEther(ethAmount));
   }
 
   function handleBuyNo() {
+    if (!ethPrice || Number(ethAmount) <= 0) return;
     const data = encodeFunctionData({ abi: buyNoAbi, functionName: "buyNo", args: [BigInt(market.id)] });
-    sendTx(CONTRACTS.binaryMarket, data, parseEther(betAmount));
+    sendTx(CONTRACTS.binaryMarket, data, parseEther(ethAmount));
   }
 
   function handleSettle() {
@@ -142,32 +149,55 @@ export default function MarketCard({ market }: { market: Market }) {
 
         {/* Betting Section — Open Markets */}
         {status === "open" && binaryMarketDeployed && (
-          <div className="mb-4 space-y-3">
+          <div className="mb-4 space-y-4">
             {/* Probability Bar */}
             <div className="flex h-2 w-full overflow-hidden rounded-full bg-navy-900">
               <div className="bg-emerald-500 transition-all" style={{ width: `${probYes}%` }} />
               <div className="bg-red-500 transition-all" style={{ width: `${probNo}%` }} />
             </div>
 
-            {/* ETH Input */}
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min="0.001"
-                step="0.01"
-                value={betAmount}
-                onChange={(e) => setBetAmount(e.target.value)}
-                className="flex-1 rounded-lg border border-navy-600 bg-navy-900 px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-accent focus:outline-none"
-                placeholder="ETH amount"
-              />
-              <span className="text-xs text-slate-500">ETH</span>
+            {/* USD Input (shadcn style) */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between rounded-lg border border-navy-600 bg-navy-900/50 p-1">
+                <button
+                  onClick={() => setUsdAmount(Math.max(10, usdAmount - 10))}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-navy-700 hover:text-white transition-colors"
+                  disabled={usdAmount <= 10}
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-400">$</span>
+                  <input
+                    type="number"
+                    min="10"
+                    step="10"
+                    value={usdAmount}
+                    onChange={(e) => setUsdAmount(Number(e.target.value))}
+                    className="w-16 bg-transparent text-center font-mono text-sm font-medium text-white focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  onClick={() => setUsdAmount(usdAmount + 10)}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-navy-700 hover:text-white transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              
+              <div className="flex justify-between px-1 text-[10px] text-slate-500">
+                <span>Amount in USD</span>
+                <span>≈ {ethPrice ? ethAmount : "..."} ETH</span>
+              </div>
             </div>
 
             {/* Buy Buttons */}
             <div className="flex gap-3">
               <button
                 onClick={handleBuyYes}
-                disabled={txPending || !address}
+                disabled={txPending || !address || !ethPrice}
                 className="group relative flex flex-1 items-center justify-between overflow-hidden rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 transition-all hover:bg-emerald-500/20 hover:border-emerald-500/50 disabled:opacity-50"
               >
                 <span className="font-semibold text-emerald-400">Buy Yes</span>
@@ -175,7 +205,7 @@ export default function MarketCard({ market }: { market: Market }) {
               </button>
               <button
                 onClick={handleBuyNo}
-                disabled={txPending || !address}
+                disabled={txPending || !address || !ethPrice}
                 className="group relative flex flex-1 items-center justify-between overflow-hidden rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 transition-all hover:bg-red-500/20 hover:border-red-500/50 disabled:opacity-50"
               >
                 <span className="font-semibold text-red-400">Buy No</span>

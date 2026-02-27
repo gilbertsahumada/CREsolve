@@ -110,6 +110,34 @@ export function useWallet() {
   return { address, isConnecting, connect, disconnect };
 }
 
+// ─── useEthPrice ─────────────────────────────────────────────────────────────
+
+export function useEthPrice() {
+  const [price, setPrice] = useState<number | null>(null);
+
+  useEffect(() => {
+    async function fetchPrice() {
+      try {
+        const res = await fetch(
+          "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"
+        );
+        const data = await res.json();
+        if (data?.ethereum?.usd) {
+          setPrice(data.ethereum.usd);
+        }
+      } catch (err) {
+        console.error("Failed to fetch ETH price", err);
+      }
+    }
+
+    fetchPrice();
+    const interval = setInterval(fetchPrice, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  return price;
+}
+
 // ─── useMarkets ──────────────────────────────────────────────────────────────
 
 export function useMarkets() {

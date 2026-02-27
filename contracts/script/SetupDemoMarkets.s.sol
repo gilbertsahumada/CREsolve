@@ -6,9 +6,9 @@ import {CREsolverMarket} from "../src/CREsolverMarket.sol";
 
 /**
  * @title SetupDemoMarkets
- * @notice Creates 6 demo markets for the frontend:
+ * @notice Creates 8 demo markets for the frontend:
  *         - 3 with 1-minute duration (expire quickly → "Expired" in frontend)
- *         - 3 with 1 day / 7 days / 30 days (stay "Open" for demo)
+ *         - 5 with varying durations (stay "Open" for demo)
  *         All markets get 3 workers auto-joined.
  *
  * Required env:
@@ -53,7 +53,7 @@ contract SetupDemoMarketsScript is Script {
         }
 
         // ── Market definitions ───────────────────────────────────────────
-        MarketDef[6] memory markets;
+        MarketDef[8] memory markets;
 
         // Batch 1: 1-minute duration (will expire quickly)
         markets[0] = MarketDef("Will global AI chip demand exceed $500B by Q3 2026?", 60);
@@ -64,11 +64,13 @@ contract SetupDemoMarketsScript is Script {
         markets[3] = MarketDef("Will bitcoin reach 200k by end of 2026?", 1 days);
         markets[4] = MarketDef("Will Ethereum L2 total TVL surpass L1 TVL within 7 days?", 7 days);
         markets[5] = MarketDef("Will a central bank launch a retail CBDC on a public blockchain by March 2026?", 30 days);
+        markets[6] = MarketDef("Will OpenAI release GPT-5 before June 2026?", 14 days);
+        markets[7] = MarketDef("Will total crypto market cap surpass $5T in 2026?", 30 days);
 
         // ── Create all markets + join workers ────────────────────────────
-        console.log("=== Creating 6 demo markets ===\n");
+        console.log("=== Creating 8 demo markets ===\n");
 
-        for (uint256 m = 0; m < 6; m++) {
+        for (uint256 m = 0; m < 8; m++) {
             // Create market
             vm.startBroadcast(deployerKey);
             uint256 id = market.createMarket{value: rewardWei}(
@@ -90,7 +92,7 @@ contract SetupDemoMarketsScript is Script {
         }
 
         console.log("========================================");
-        console.log("  6 demo markets created!");
+        console.log("  8 demo markets created!");
         console.log("  Contract: %s", marketAddr);
         console.log("========================================\n");
     }

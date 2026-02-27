@@ -10,6 +10,18 @@ interface ChangelogEntry {
 const entries: ChangelogEntry[] = [
   {
     date: "2026-02-27",
+    version: "v0.5.0",
+    title: "USD Betting Interface",
+    description: "Upgraded the betting interface to use USD amounts with real-time ETH conversion and shadcn-inspired UI controls.",
+    type: "feature",
+    highlights: [
+      "Added USD input with +/- step controls for betting",
+      "Integrated CoinGecko API for real-time ETH/USD price conversion",
+      "Improved UI with lucide-react icons and shadcn styling",
+    ],
+  },
+  {
+    date: "2026-02-27",
     version: "v0.4.0",
     title: "User Betting + Resolver Incentives",
     description: "Users can now bet ETH on YES/NO outcomes via BinaryMarket companion contract. Anyone can trigger resolution and earn settlement fees.",

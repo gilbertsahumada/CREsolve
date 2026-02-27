@@ -2,13 +2,20 @@
 
 import { useState } from "react";
 import { formatEther, parseEther, encodeFunctionData } from "viem";
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus, ExternalLink, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import type { Market, MarketStatus } from "@/lib/types";
 import { getMarketStatus, formatRelativeDeadline } from "@/lib/types";
-import { useBettingPool, useWallet, useEthPrice } from "@/lib/hooks";
+import { useBettingPool, useWallet, useEthPrice, waitForTx } from "@/lib/hooks";
 import { CONTRACTS } from "@/lib/config";
 import { buyYesAbi, buyNoAbi, settleAbi, claimAbi } from "@/lib/contracts";
 import StatusBadge from "./StatusBadge";
+
+type TxState =
+  | { status: "idle" }
+  | { status: "pending" }
+  | { status: "confirming"; hash: string }
+  | { status: "success"; hash: string }
+  | { status: "error"; message: string };
 
 export default function MarketCard({ market }: { market: Market }) {
   const status = getMarketStatus(market);
@@ -19,7 +26,8 @@ export default function MarketCard({ market }: { market: Market }) {
   const ethPrice = useEthPrice();
 
   const [usdAmount, setUsdAmount] = useState<number>(10);
-  const [txPending, setTxPending] = useState(false);
+  const [txState, setTxState] = useState<TxState>({ status: "idle" });
+  const txPending = txState.status === "pending" || txState.status === "confirming";
 
   // Calculate ETH equivalent
   const ethAmount = ethPrice ? (usdAmount / ethPrice).toFixed(6) : "0";
@@ -42,9 +50,9 @@ export default function MarketCard({ market }: { market: Market }) {
       alert("Please connect your wallet first.");
       return;
     }
-    setTxPending(true);
+    setTxState({ status: "pending" });
     try {
-      await window.ethereum.request({
+      const hash = await window.ethereum.request({
         method: "eth_sendTransaction",
         params: [{
           from: address,
@@ -52,13 +60,26 @@ export default function MarketCard({ market }: { market: Market }) {
           data,
           ...(value ? { value: `0x${value.toString(16)}` } : {}),
         }],
-      });
-      // Wait a bit for the tx to be included, then refresh
-      setTimeout(() => refreshPool(), 5000);
+      }) as string;
+
+      setTxState({ status: "confirming", hash });
+
+      await waitForTx(hash as `0x${string}`);
+
+      setTxState({ status: "success", hash });
+      refreshPool();
+
+      // Auto-dismiss after 6 seconds
+      setTimeout(() => setTxState((s) => s.status === "success" ? { status: "idle" } : s), 6000);
     } catch (err: any) {
-      if (err.code !== 4001) console.error(err); // 4001 = user rejected
-    } finally {
-      setTxPending(false);
+      if (err.code === 4001) {
+        // User rejected — silently reset
+        setTxState({ status: "idle" });
+      } else {
+        const message = err?.message?.slice(0, 120) ?? "Transaction failed";
+        setTxState({ status: "error", message });
+        setTimeout(() => setTxState((s) => s.status === "error" ? { status: "idle" } : s), 8000);
+      }
     }
   }
 
@@ -216,6 +237,11 @@ export default function MarketCard({ market }: { market: Market }) {
             {!address && (
               <p className="text-center text-xs text-slate-500">Connect wallet to place bets</p>
             )}
+
+            {/* Transaction Status Banner */}
+            {txState.status !== "idle" && (
+              <TxBanner state={txState} onDismiss={() => setTxState({ status: "idle" })} />
+            )}
           </div>
         )}
 
@@ -277,6 +303,10 @@ export default function MarketCard({ market }: { market: Market }) {
                 Claim Winnings
               </button>
             )}
+
+            {txState.status !== "idle" && (
+              <TxBanner state={txState} onDismiss={() => setTxState({ status: "idle" })} />
+            )}
           </div>
         )}
       </div>
@@ -301,4 +331,74 @@ export default function MarketCard({ market }: { market: Market }) {
       </div>
     </div>
   );
+}
+
+// ─── Transaction Status Banner ───────────────────────────────────────────────
+
+function TxBanner({ state, onDismiss }: { state: TxState; onDismiss: () => void }) {
+  const etherscanTx = (hash: string) => `https://sepolia.etherscan.io/tx/${hash}`;
+
+  if (state.status === "pending") {
+    return (
+      <div className="flex items-center gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-xs text-blue-400">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <span>Confirm in your wallet...</span>
+      </div>
+    );
+  }
+
+  if (state.status === "confirming") {
+    return (
+      <div className="flex items-center justify-between rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-xs text-blue-400">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <span>Waiting for confirmation...</span>
+        </div>
+        <a
+          href={etherscanTx(state.hash)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 hover:text-blue-300 transition-colors"
+        >
+          View <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
+    );
+  }
+
+  if (state.status === "success") {
+    return (
+      <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-xs text-emerald-400">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          <span>Transaction confirmed!</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <a
+            href={etherscanTx(state.hash)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 hover:text-emerald-300 transition-colors"
+          >
+            View <ExternalLink className="h-3 w-3" />
+          </a>
+          <button onClick={onDismiss} className="text-emerald-500/50 hover:text-emerald-400 transition-colors">&times;</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <div className="flex items-center justify-between rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">
+        <div className="flex items-center gap-2 min-w-0">
+          <XCircle className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{state.message}</span>
+        </div>
+        <button onClick={onDismiss} className="shrink-0 text-red-500/50 hover:text-red-400 transition-colors">&times;</button>
+      </div>
+    );
+  }
+
+  return null;
 }

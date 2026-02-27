@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { createPublicClient, http, type Address } from "viem";
 import { CHAIN, CONTRACTS, AGENTS, RPC_URL } from "./config";
 import {
@@ -19,9 +19,29 @@ const client = createPublicClient({
   transport: http(RPC_URL),
 });
 
-// ─── useWallet ───────────────────────────────────────────────────────────────
+// ─── waitForTx ───────────────────────────────────────────────────────────────
 
-export function useWallet() {
+export async function waitForTx(hash: `0x${string}`) {
+  return client.waitForTransactionReceipt({ hash, confirmations: 1 });
+}
+
+// ─── WalletContext ───────────────────────────────────────────────────────────
+
+interface WalletState {
+  address: Address | null;
+  isConnecting: boolean;
+  connect: () => Promise<void>;
+  disconnect: () => void;
+}
+
+const WalletContext = createContext<WalletState>({
+  address: null,
+  isConnecting: false,
+  connect: async () => {},
+  disconnect: () => {},
+});
+
+export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [address, setAddress] = useState<Address | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
 
@@ -36,10 +56,10 @@ export function useWallet() {
       const accounts = await window.ethereum.request({
         method: "eth_requestAccounts",
       });
-      
+
       if (accounts && accounts.length > 0) {
         setAddress(accounts[0] as Address);
-        
+
         // Switch to Sepolia if needed
         try {
           await window.ethereum.request({
@@ -47,7 +67,6 @@ export function useWallet() {
             params: [{ chainId: `0x${CHAIN.id.toString(16)}` }],
           });
         } catch (switchError: any) {
-          // This error code indicates that the chain has not been added to MetaMask.
           if (switchError.code === 4902) {
             try {
               await window.ethereum.request({
@@ -91,7 +110,7 @@ export function useWallet() {
       };
 
       window.ethereum.on("accountsChanged", handleAccountsChanged);
-      
+
       // Check if already connected
       window.ethereum.request({ method: "eth_accounts" })
         .then((accounts: any) => {
@@ -107,7 +126,15 @@ export function useWallet() {
     }
   }, []);
 
-  return { address, isConnecting, connect, disconnect };
+  return (
+    <WalletContext.Provider value={{ address, isConnecting, connect, disconnect }}>
+      {children}
+    </WalletContext.Provider>
+  );
+}
+
+export function useWallet() {
+  return useContext(WalletContext);
 }
 
 // ─── useEthPrice ─────────────────────────────────────────────────────────────

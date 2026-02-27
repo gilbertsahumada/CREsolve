@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "CREsolver Dashboard",
@@ -15,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="min-h-screen bg-navy-900 text-slate-200 antialiased">
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

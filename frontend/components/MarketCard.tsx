@@ -6,7 +6,7 @@ import { Minus, Plus, ExternalLink, Loader2, CheckCircle2, XCircle, ChevronDown 
 import type { Market } from "@/lib/types";
 import { getMarketStatus, formatRelativeDeadline } from "@/lib/types";
 import { useBettingPool, useWallet, useEthPrice, waitForTx } from "@/lib/hooks";
-import { checkAgentOwnership } from "@/lib/blockchain";
+import { checkAgentOwnership, getAgentWallet } from "@/lib/blockchain";
 import { CONTRACTS, AGENTS, etherscanAddress, trust8004Url } from "@/lib/config";
 import { buyYesAbi, buyNoAbi, settleAbi, claimAbi, joinMarketAbi, requestResolutionAbi } from "@/lib/contracts";
 import StatusBadge from "./StatusBadge";
@@ -36,6 +36,7 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
   const [agentIdInput, setAgentIdInput] = useState("");
   const [ownershipStatus, setOwnershipStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle");
   const [ownershipError, setOwnershipError] = useState("");
+  const [agentWallet, setAgentWallet] = useState<string | null>(null);
   const [joinTxState, setJoinTxState] = useState<TxState>({ status: "idle" });
   const joinTxPending = joinTxState.status === "pending" || joinTxState.status === "confirming";
 
@@ -125,14 +126,21 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
     if (!address || !id || id <= 0) return;
     setOwnershipStatus("checking");
     setOwnershipError("");
+    setAgentWallet(null);
     try {
-      const isOwner = await checkAgentOwnership(address, id);
-      if (isOwner) {
-        setOwnershipStatus("valid");
-      } else {
+      const [wallet, isOwner] = await Promise.all([
+        getAgentWallet(id),
+        checkAgentOwnership(address, id),
+      ]);
+
+      if (!isOwner) {
         setOwnershipStatus("invalid");
         setOwnershipError("Your wallet is not the owner/approved for this agent ID.");
+        return;
       }
+
+      setAgentWallet(wallet);
+      setOwnershipStatus("valid");
     } catch {
       setOwnershipStatus("invalid");
       setOwnershipError("Failed to verify — check your connection and try again.");
@@ -348,6 +356,7 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
                       setAgentIdInput(v);
                       setOwnershipStatus("idle");
                       setOwnershipError("");
+                      setAgentWallet(null);
                     }}
                     placeholder="Agent ID (e.g. 1299)"
                     className="flex-1 rounded-lg border border-navy-700 bg-navy-900/50 px-3 py-2 text-sm font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-accent/40"
@@ -364,9 +373,29 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
 
                 {/* Ownership result */}
                 {ownershipStatus === "valid" && (
-                  <div className="flex items-center gap-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-xs text-emerald-400">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Wallet authorized for Agent #{agentIdInput}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-xs text-emerald-400">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                      <span>Agent #{agentIdInput} verified — you are authorized</span>
+                    </div>
+                    {agentWallet && (
+                      <div className="flex items-center gap-1.5 rounded-md bg-navy-800/50 px-3 py-2 text-xs text-slate-400">
+                        <span className="text-slate-500">Agent wallet:</span>
+                        <a
+                          href={etherscanAddress(agentWallet)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-accent hover:text-blue-300 transition-colors"
+                        >
+                          {agentWallet.slice(0, 6)}...{agentWallet.slice(-4)}
+                        </a>
+                      </div>
+                    )}
+                    {agentWallet && address && agentWallet.toLowerCase() !== address.toLowerCase() && (
+                      <div className="flex items-center gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-400">
+                        <span>Note: Your connected wallet will be registered as the worker, not the agent&apos;s wallet.</span>
+                      </div>
+                    )}
                   </div>
                 )}
                 {ownershipStatus === "invalid" && (
@@ -387,7 +416,7 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
                 {/* Actions */}
                 <div className="flex gap-2">
                   <button
-                    onClick={() => { setShowJoin(false); setAgentIdInput(""); setOwnershipStatus("idle"); setOwnershipError(""); }}
+                    onClick={() => { setShowJoin(false); setAgentIdInput(""); setOwnershipStatus("idle"); setOwnershipError(""); setAgentWallet(null); }}
                     className="flex-1 rounded-lg border border-navy-700 px-3 py-2 text-xs font-medium text-slate-400 transition-colors hover:text-slate-200"
                   >
                     Cancel

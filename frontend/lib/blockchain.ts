@@ -1,6 +1,8 @@
 import { createPublicClient, http, type Address } from "viem";
 import { CHAIN, CONTRACTS, RPC_URL } from "./config";
-import { isAuthorizedOrOwnerAbi } from "./contracts";
+import { isAuthorizedOrOwnerAbi, getAgentWalletAbi } from "./contracts";
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const client = createPublicClient({
   chain: CHAIN,
@@ -22,5 +24,22 @@ export async function checkAgentOwnership(
   } catch {
     // Reverts if agent doesn't exist (ERC721NonexistentToken)
     return false;
+  }
+}
+
+export async function getAgentWallet(
+  agentId: number
+): Promise<Address | null> {
+  try {
+    const result = await client.readContract({
+      address: CONTRACTS.identityRegistry,
+      abi: getAgentWalletAbi,
+      functionName: "getAgentWallet",
+      args: [BigInt(agentId)],
+    });
+    const addr = result as Address;
+    return addr === ZERO_ADDRESS ? null : addr;
+  } catch {
+    return null;
   }
 }

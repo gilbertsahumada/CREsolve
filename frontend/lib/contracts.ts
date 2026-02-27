@@ -184,6 +184,16 @@ export const binaryWithdrawAbi = [
 
 // ─── ERC-8004 Identity Registry ABIs ────────────────────────────────────────
 
+export const getAgentWalletAbi = [
+  {
+    name: "getAgentWallet",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "agentId", type: "uint256" }],
+    outputs: [{ type: "address" }],
+  },
+] as const;
+
 export const isAuthorizedOrOwnerAbi = [
   {
     name: "isAuthorizedOrOwner",

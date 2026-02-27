@@ -1,0 +1,36 @@
+{
+  "contract": "0x6E61036B4627e7bD0F8157Cf26dafbCCBE43DA96",
+  "chain": 11155111,
+  "event": "ResolutionRequested(uint256 indexed marketId, string question)",
+  "topicHash": "0xf6ab5c2ebaf7695b7fae6b838894cc8d071250c0e84f2fb3eab2b642489802c2",
+  "requests": [
+    {
+      "marketId": 1,
+      "question": "Will global AI chip demand exceed $500B by Q3 2026?",
+      "txHash": "0x4d9550924307e17959658023cc60ebb5c82e9cba0541732612f32839605c5604",
+      "blockNumber": 10346217,
+      "logIndex": 0
+    },
+    {
+      "marketId": 2,
+      "question": "Will SpaceX complete a successful Starship orbital refueling test in 2026?",
+      "txHash": "0x61ef203b24436fbf5e203a1ea3464ce66133cb9143b2260d2ce743f4a54b839e",
+      "blockNumber": 10346230,
+      "logIndex": 0
+    },
+    {
+      "marketId": 3,
+      "question": "Will the EU pass comprehensive DeFi regulation before July 2026?",
+      "txHash": "0xc9242d047deb8484eba60322739a3dd0df44468869603bcadb0a539944c2b7f2",
+      "blockNumber": 10346232,
+      "logIndex": 0
+    },
+    {
+      "marketId": 8,
+      "question": "Will total crypto market cap surpass $5T in 2026?",
+      "txHash": "0x2871ffced49ecc5257d29a12cf0a752dc54ad754a4ed891b961d156719fb9810",
+      "blockNumber": 10346190,
+      "logIndex": 0
+    }
+  ]
+}

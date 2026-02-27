@@ -15,6 +15,7 @@ export const getMarketAbi = [
           { name: "deadline", type: "uint256" },
           { name: "creator", type: "address" },
           { name: "resolved", type: "bool" },
+          { name: "resolution", type: "bool" },
         ],
       },
     ],
@@ -66,5 +67,88 @@ export const marketCountAbi = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ type: "uint256" }],
+  },
+] as const;
+
+// ─── BinaryMarket ABIs ─────────────────────────────────────────────────────
+
+export const getPoolAbi = [
+  {
+    name: "getPool",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "marketId", type: "uint256" }],
+    outputs: [
+      { name: "yesTotal", type: "uint256" },
+      { name: "noTotal", type: "uint256" },
+      { name: "settled", type: "bool" },
+      { name: "outcome", type: "bool" },
+    ],
+  },
+] as const;
+
+export const getUserPositionAbi = [
+  {
+    name: "getUserPosition",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "marketId", type: "uint256" },
+      { name: "user", type: "address" },
+    ],
+    outputs: [
+      { name: "yesAmount", type: "uint256" },
+      { name: "noAmount", type: "uint256" },
+    ],
+  },
+] as const;
+
+export const buyYesAbi = [
+  {
+    name: "buyYes",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [{ name: "marketId", type: "uint256" }],
+    outputs: [],
+  },
+] as const;
+
+export const buyNoAbi = [
+  {
+    name: "buyNo",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [{ name: "marketId", type: "uint256" }],
+    outputs: [],
+  },
+] as const;
+
+export const settleAbi = [
+  {
+    name: "settle",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "marketId", type: "uint256" }],
+    outputs: [],
+  },
+] as const;
+
+export const claimAbi = [
+  {
+    name: "claim",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "marketId", type: "uint256" }],
+    outputs: [],
+  },
+] as const;
+
+export const binaryWithdrawAbi = [
+  {
+    name: "withdraw",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
   },
 ] as const;

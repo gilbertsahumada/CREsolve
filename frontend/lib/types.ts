@@ -7,7 +7,15 @@ export interface Market {
   deadline: bigint;
   creator: Address;
   resolved: boolean;
+  resolution: boolean;
   workers: Address[];
+}
+
+export interface BettingPool {
+  yesTotal: bigint;
+  noTotal: bigint;
+  settled: boolean;
+  outcome: boolean;
 }
 
 export interface Reputation {

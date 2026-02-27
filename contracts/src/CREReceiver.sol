@@ -22,9 +22,10 @@ interface ICREsolverMarket {
  * @author CREsolver
  */
 contract CREReceiver is ReceiverTemplate {
-    ICREsolverMarket public immutable market;
+    ICREsolverMarket public market;
 
     event ReportReceived(bytes32 indexed workflowId, uint256 indexed marketId);
+    event MarketUpdated(address indexed oldMarket, address indexed newMarket);
 
     constructor(
         address _market,
@@ -32,6 +33,17 @@ contract CREReceiver is ReceiverTemplate {
     ) ReceiverTemplate(_forwarder) {
         require(_market != address(0), "Invalid market address");
         market = ICREsolverMarket(_market);
+    }
+
+    /**
+     * @notice Update the CREsolverMarket address (avoids redeploying CREReceiver)
+     * @param _newMarket The new CREsolverMarket address
+     */
+    function setMarket(address _newMarket) external onlyOwner {
+        require(_newMarket != address(0), "Invalid market address");
+        address old = address(market);
+        market = ICREsolverMarket(_newMarket);
+        emit MarketUpdated(old, _newMarket);
     }
 
     /**

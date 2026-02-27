@@ -6,8 +6,9 @@ import { sepolia } from "viem/chains";
 export const CHAIN = sepolia;
 
 export const CONTRACTS = {
-  market: "0x499B178A5152Fb658dDbA1622B9B29Bb88561863" as Address,
-  receiver: "0x81B324C2FA2c092d17752E5998b62A8CceaD2eA4" as Address,
+  market: "0x9C09e483ecF768392306b358a8609B04e9b28fbb" as Address,
+  binaryMarket: "0x56bd6A11bC23e48f0fc0BeA99A9DDCb899A3617c" as Address,
+  receiver: "0x33c8832E146CFEc249459a4cEe8ba5DCF6d8AC59" as Address,
   identityRegistry: "0x8004A818BFB912233c491871b3d84c89A494BD9e" as Address,
   reputationRegistry: "0x8004B663056A597Dffe9eCcC1965A193B7388713" as Address,
 } as const;

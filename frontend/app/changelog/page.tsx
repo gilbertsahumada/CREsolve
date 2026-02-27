@@ -10,6 +10,20 @@ interface ChangelogEntry {
 const entries: ChangelogEntry[] = [
   {
     date: "2026-02-27",
+    version: "v0.4.0",
+    title: "User Betting + Resolver Incentives",
+    description: "Users can now bet ETH on YES/NO outcomes via BinaryMarket companion contract. Anyone can trigger resolution and earn settlement fees.",
+    type: "feature",
+    highlights: [
+      "BinaryMarket.sol: bet YES/NO with ETH, settle, and claim winnings",
+      "Open requestResolution() to anyone — no more creator-only restriction",
+      "1% settlement fee incentivizes fast resolution triggering",
+      "Real-time pool data and probabilities in MarketCard",
+      "On-chain resolution outcome stored in Market struct",
+    ],
+  },
+  {
+    date: "2026-02-27",
     version: "v0.3.0",
     title: "UI Overhaul & Wallet Connection",
     description: "Redesigned the prediction market cards for better UX and added Web3 wallet connection support for the Sepolia network.",

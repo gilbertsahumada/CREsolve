@@ -9,7 +9,7 @@ import {AlreadyJoined, NotAgentOwner} from "../src/lib/CREsolverMarketErrors.sol
 
 contract CREsolverMarketForkTest is Test {
     // Deployed contracts on Sepolia
-    address constant DEPLOYED_MARKET = 0x499B178A5152Fb658dDbA1622B9B29Bb88561863;
+    address constant DEPLOYED_MARKET = 0x9C09e483ecF768392306b358a8609B04e9b28fbb;
     address constant IDENTITY_REGISTRY = 0x8004A818BFB912233c491871b3d84c89A494BD9e;
 
     CREsolverMarket internal market;

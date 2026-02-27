@@ -1,29 +1,85 @@
 "use client";
 
-import { formatEther } from "viem";
+import { useState } from "react";
+import { formatEther, parseEther, encodeFunctionData } from "viem";
 import type { Market, MarketStatus } from "@/lib/types";
-import { getMarketStatus, formatRelativeDeadline, deadlineDelta } from "@/lib/types";
+import { getMarketStatus, formatRelativeDeadline } from "@/lib/types";
+import { useBettingPool, useWallet } from "@/lib/hooks";
+import { CONTRACTS } from "@/lib/config";
+import { buyYesAbi, buyNoAbi, settleAbi, claimAbi } from "@/lib/contracts";
 import StatusBadge from "./StatusBadge";
-
-const borderColor: Record<MarketStatus, string> = {
-  open: "border-l-emerald-500",
-  awaiting_resolution: "border-l-amber-500",
-  resolved: "border-l-blue-500",
-};
 
 export default function MarketCard({ market }: { market: Market }) {
   const status = getMarketStatus(market);
-  const relTime = formatRelativeDeadline(market);
   const deadlineDate = new Date(Number(market.deadline) * 1000);
   const rewardStr = formatEther(market.rewardPool);
+  const { address } = useWallet();
+  const { pool, refresh: refreshPool } = useBettingPool(market.id);
 
-  // Mock probabilities for UI purposes
-  const probYes = (market.id * 37 % 80) + 10; // Random-ish between 10 and 90
+  const [betAmount, setBetAmount] = useState("0.01");
+  const [txPending, setTxPending] = useState(false);
+
+  // Calculate probabilities from pool data
+  const zero = BigInt(0);
+  const hundred = BigInt(100);
+  const bps = BigInt(10000);
+  const feeBps = BigInt(100);
+  const yesTotal = pool?.yesTotal ?? zero;
+  const noTotal = pool?.noTotal ?? zero;
+  const totalBets = yesTotal + noTotal;
+  const probYes = totalBets > zero ? Number((yesTotal * hundred) / totalBets) : 50;
   const probNo = 100 - probYes;
+
+  const binaryMarketDeployed = CONTRACTS.binaryMarket !== "0x0000000000000000000000000000000000000000";
+
+  async function sendTx(to: `0x${string}`, data: `0x${string}`, value?: bigint) {
+    if (!window.ethereum || !address) {
+      alert("Please connect your wallet first.");
+      return;
+    }
+    setTxPending(true);
+    try {
+      await window.ethereum.request({
+        method: "eth_sendTransaction",
+        params: [{
+          from: address,
+          to,
+          data,
+          ...(value ? { value: `0x${value.toString(16)}` } : {}),
+        }],
+      });
+      // Wait a bit for the tx to be included, then refresh
+      setTimeout(() => refreshPool(), 5000);
+    } catch (err: any) {
+      if (err.code !== 4001) console.error(err); // 4001 = user rejected
+    } finally {
+      setTxPending(false);
+    }
+  }
+
+  function handleBuyYes() {
+    const data = encodeFunctionData({ abi: buyYesAbi, functionName: "buyYes", args: [BigInt(market.id)] });
+    sendTx(CONTRACTS.binaryMarket, data, parseEther(betAmount));
+  }
+
+  function handleBuyNo() {
+    const data = encodeFunctionData({ abi: buyNoAbi, functionName: "buyNo", args: [BigInt(market.id)] });
+    sendTx(CONTRACTS.binaryMarket, data, parseEther(betAmount));
+  }
+
+  function handleSettle() {
+    const data = encodeFunctionData({ abi: settleAbi, functionName: "settle", args: [BigInt(market.id)] });
+    sendTx(CONTRACTS.binaryMarket, data);
+  }
+
+  function handleClaim() {
+    const data = encodeFunctionData({ abi: claimAbi, functionName: "claim", args: [BigInt(market.id)] });
+    sendTx(CONTRACTS.binaryMarket, data);
+  }
 
   return (
     <div
-      className={`flex flex-col justify-between rounded-2xl border border-navy-700 bg-navy-800/40 p-5 transition-all hover:bg-navy-800/60 hover:border-navy-600 shadow-sm hover:shadow-md`}
+      className="flex flex-col justify-between rounded-2xl border border-navy-700 bg-navy-800/40 p-5 transition-all hover:bg-navy-800/60 hover:border-navy-600 shadow-sm hover:shadow-md"
     >
       <div>
         {/* Header: question + badge */}
@@ -38,7 +94,6 @@ export default function MarketCard({ market }: { market: Market }) {
 
         {/* Stats row */}
         <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-          {/* Reward — prominent */}
           <span className="flex items-center gap-1.5 rounded-md bg-accent/10 px-2 py-1 text-accent font-medium border border-accent/20">
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
@@ -46,7 +101,6 @@ export default function MarketCard({ market }: { market: Market }) {
             {rewardStr} ETH Pool
           </span>
 
-          {/* Workers */}
           <span className="flex items-center gap-1.5 text-slate-400">
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4-4v2" />
@@ -56,7 +110,15 @@ export default function MarketCard({ market }: { market: Market }) {
             {market.workers.length} workers
           </span>
 
-          {/* Relative time */}
+          {totalBets > zero && (
+            <span className="flex items-center gap-1.5 text-slate-400">
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+              </svg>
+              {formatEther(totalBets)} ETH bets
+            </span>
+          )}
+
           <span
             className={`flex items-center gap-1.5 ${
               status === "open"
@@ -71,37 +133,84 @@ export default function MarketCard({ market }: { market: Market }) {
               <polyline points="12 6 12 12 16 14" />
             </svg>
             {status === "resolved" ? (
-              <span>Resolved</span>
+              <span>Resolved {market.resolution ? "YES" : "NO"}</span>
             ) : (
-              <span>{relTime}</span>
+              <span>{formatRelativeDeadline(market)}</span>
             )}
           </span>
         </div>
 
-        {/* Prediction Market Actions */}
-        {status === "open" && (
+        {/* Betting Section — Open Markets */}
+        {status === "open" && binaryMarketDeployed && (
           <div className="mb-4 space-y-3">
             {/* Probability Bar */}
             <div className="flex h-2 w-full overflow-hidden rounded-full bg-navy-900">
               <div className="bg-emerald-500 transition-all" style={{ width: `${probYes}%` }} />
               <div className="bg-red-500 transition-all" style={{ width: `${probNo}%` }} />
             </div>
-            
-            {/* Buttons */}
+
+            {/* ETH Input */}
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0.001"
+                step="0.01"
+                value={betAmount}
+                onChange={(e) => setBetAmount(e.target.value)}
+                className="flex-1 rounded-lg border border-navy-600 bg-navy-900 px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-accent focus:outline-none"
+                placeholder="ETH amount"
+              />
+              <span className="text-xs text-slate-500">ETH</span>
+            </div>
+
+            {/* Buy Buttons */}
             <div className="flex gap-3">
-              <button className="group relative flex flex-1 items-center justify-between overflow-hidden rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 transition-all hover:bg-emerald-500/20 hover:border-emerald-500/50">
+              <button
+                onClick={handleBuyYes}
+                disabled={txPending || !address}
+                className="group relative flex flex-1 items-center justify-between overflow-hidden rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 transition-all hover:bg-emerald-500/20 hover:border-emerald-500/50 disabled:opacity-50"
+              >
                 <span className="font-semibold text-emerald-400">Buy Yes</span>
                 <span className="font-mono text-sm text-emerald-400/80">{probYes}%</span>
               </button>
-              <button className="group relative flex flex-1 items-center justify-between overflow-hidden rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 transition-all hover:bg-red-500/20 hover:border-red-500/50">
+              <button
+                onClick={handleBuyNo}
+                disabled={txPending || !address}
+                className="group relative flex flex-1 items-center justify-between overflow-hidden rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 transition-all hover:bg-red-500/20 hover:border-red-500/50 disabled:opacity-50"
+              >
                 <span className="font-semibold text-red-400">Buy No</span>
                 <span className="font-mono text-sm text-red-400/80">{probNo}%</span>
               </button>
             </div>
+
+            {!address && (
+              <p className="text-center text-xs text-slate-500">Connect wallet to place bets</p>
+            )}
           </div>
         )}
 
-        {/* Context line per status */}
+        {/* Fallback: mock buttons when BinaryMarket not deployed */}
+        {status === "open" && !binaryMarketDeployed && (
+          <div className="mb-4 space-y-3">
+            <div className="flex h-2 w-full overflow-hidden rounded-full bg-navy-900">
+              <div className="bg-emerald-500 transition-all" style={{ width: "50%" }} />
+              <div className="bg-red-500 transition-all" style={{ width: "50%" }} />
+            </div>
+            <div className="flex gap-3">
+              <button className="group relative flex flex-1 items-center justify-between overflow-hidden rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 transition-all hover:bg-emerald-500/20 hover:border-emerald-500/50 opacity-50 cursor-not-allowed">
+                <span className="font-semibold text-emerald-400">Buy Yes</span>
+                <span className="font-mono text-sm text-emerald-400/80">50%</span>
+              </button>
+              <button className="group relative flex flex-1 items-center justify-between overflow-hidden rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 transition-all hover:bg-red-500/20 hover:border-red-500/50 opacity-50 cursor-not-allowed">
+                <span className="font-semibold text-red-400">Buy No</span>
+                <span className="font-mono text-sm text-red-400/80">50%</span>
+              </button>
+            </div>
+            <p className="text-center text-xs text-slate-500">BinaryMarket not deployed yet</p>
+          </div>
+        )}
+
+        {/* Awaiting resolution */}
         {status === "awaiting_resolution" && (
           <div className="mb-4 rounded-lg bg-amber-500/10 p-3 border border-amber-500/20">
             <p className="text-xs text-amber-400/90">
@@ -109,11 +218,35 @@ export default function MarketCard({ market }: { market: Market }) {
             </p>
           </div>
         )}
+
+        {/* Resolved: Settle + Claim */}
         {status === "resolved" && (
-          <div className="mb-4 rounded-lg bg-blue-500/10 p-3 border border-blue-500/20">
-            <p className="text-xs text-blue-400/90">
-              Market resolved &mdash; rewards distributed and reputation updated.
-            </p>
+          <div className="mb-4 space-y-3">
+            <div className="rounded-lg bg-blue-500/10 p-3 border border-blue-500/20">
+              <p className="text-xs text-blue-400/90">
+                Market resolved <span className="font-semibold">{market.resolution ? "YES" : "NO"}</span> &mdash; rewards distributed and reputation updated.
+              </p>
+            </div>
+
+            {binaryMarketDeployed && pool && !pool.settled && totalBets > zero && (
+              <button
+                onClick={handleSettle}
+                disabled={txPending || !address}
+                className="w-full rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm font-semibold text-amber-400 transition-all hover:bg-amber-500/20 disabled:opacity-50"
+              >
+                Settle (earn 1% fee: {formatEther((totalBets * feeBps) / bps)} ETH)
+              </button>
+            )}
+
+            {binaryMarketDeployed && pool?.settled && (
+              <button
+                onClick={handleClaim}
+                disabled={txPending || !address}
+                className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-400 transition-all hover:bg-emerald-500/20 disabled:opacity-50"
+              >
+                Claim Winnings
+              </button>
+            )}
           </div>
         )}
       </div>

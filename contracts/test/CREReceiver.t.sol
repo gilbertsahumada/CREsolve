@@ -205,6 +205,76 @@ contract CREReceiverTest is Test {
         assertEq(name, "cresolver");
     }
 
+    // ─── setMarket ─────────────────────────────────────────────────
+
+    function test_setMarket_updates() public {
+        address newMarket = makeAddr("newMarket");
+
+        vm.expectEmit(true, true, false, false);
+        emit CREReceiver.MarketUpdated(address(market), newMarket);
+
+        receiver.setMarket(newMarket);
+
+        assertEq(address(receiver.market()), newMarket);
+    }
+
+    function test_setMarket_only_owner() public {
+        address nobody = makeAddr("nobody");
+        vm.prank(nobody);
+        vm.expectRevert();
+        receiver.setMarket(makeAddr("newMarket"));
+    }
+
+    function test_setMarket_reverts_zero_address() public {
+        vm.expectRevert("Invalid market address");
+        receiver.setMarket(address(0));
+    }
+
+    function test_setMarket_routes_to_new_market() public {
+        // Deploy a second CREsolverMarket
+        CREsolverMarket market2 = new CREsolverMarket(mockIdentity, mockReputation);
+        vm.mockCall(
+            mockIdentity,
+            abi.encodeWithSelector(bytes4(keccak256("isAuthorizedOrOwner(address,uint256)"))),
+            abi.encode(true)
+        );
+
+        // Point receiver to market2
+        receiver.setMarket(address(market2));
+
+        // Authorize receiver on market2
+        market2.setAuthorizedResolver(address(receiver), true);
+
+        // Create market + workers on market2
+        market2.createMarket{value: 1 ether}("New question?", 1 days);
+        vm.deal(worker1, 1 ether);
+        vm.prank(worker1);
+        market2.joinMarket{value: 0.05 ether}(0, 0);
+        vm.deal(worker2, 1 ether);
+        vm.prank(worker2);
+        market2.joinMarket{value: 0.05 ether}(0, 0);
+
+        // Resolve via receiver → should hit market2
+        address[] memory workers = new address[](2);
+        workers[0] = worker1;
+        workers[1] = worker2;
+        uint256[] memory weights = new uint256[](2);
+        weights[0] = 5000;
+        weights[1] = 5000;
+        uint8[] memory dimScores = new uint8[](6);
+        dimScores[0] = 80; dimScores[1] = 70; dimScores[2] = 60;
+        dimScores[3] = 90; dimScores[4] = 85; dimScores[5] = 75;
+
+        bytes memory report = abi.encode(uint256(0), workers, weights, dimScores, true);
+
+        vm.prank(forwarder);
+        receiver.onReport(_validMetadata(), report);
+
+        // market2 resolved, original market untouched
+        assertTrue(market2.getMarket(0).resolved);
+        assertFalse(market.getMarket(0).resolved);
+    }
+
     // ─── ERC165 ──────────────────────────────────────────────────────
 
     function test_supportsInterface() public view {

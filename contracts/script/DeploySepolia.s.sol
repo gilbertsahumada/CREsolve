@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Script, console} from "forge-std/Script.sol";
 import {CREsolverMarket} from "../src/CREsolverMarket.sol";
 import {CREReceiver} from "../src/CREReceiver.sol";
+import {BinaryMarket} from "../src/BinaryMarket.sol";
 
 /**
  * @title DeploySepolia
@@ -89,7 +90,11 @@ contract DeploySepoliaScript is Script {
             console.log("  KEYSTONE_FORWARDER not set: skipping CREReceiver deploy");
         }
 
-        // 3. Create a test market
+        // 3. Deploy BinaryMarket (companion betting contract)
+        BinaryMarket binary = new BinaryMarket(address(market));
+        console.log("  BinaryMarket: %s", address(binary));
+
+        // 4. Create a test market
         uint256 marketId = market.createMarket{value: 0.01 ether}(
             "Will bitcoin reach 200k by end of 2026?",
             7 days
@@ -119,6 +124,7 @@ contract DeploySepoliaScript is Script {
         console.log("========================================");
         console.log("  CREsolverMarket: %s", address(market));
         console.log("  CREReceiver: %s", receiverAddress);
+        console.log("  BinaryMarket: %s", address(binary));
         console.log("  Market ID: %d", marketId);
         console.log("  Workers: 3 (with ERC-8004 identity)");
         console.log("  Network: Sepolia");

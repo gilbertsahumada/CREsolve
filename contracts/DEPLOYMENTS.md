@@ -41,9 +41,15 @@ forge verify-contract <RECEIVER_ADDRESS> CREReceiver \
   --rpc-url $SEPOLIA_RPC \
   --etherscan-api-key $ETHERSCAN_API_KEY \
   --constructor-args $(cast abi-encode "constructor(address,address)" <MARKET_ADDRESS> <KEYSTONE_FORWARDER>)
+
+# Verify BinaryMarket
+forge verify-contract <BINARY_MARKET_ADDRESS> BinaryMarket \
+  --rpc-url $SEPOLIA_RPC \
+  --etherscan-api-key $ETHERSCAN_API_KEY \
+  --constructor-args $(cast abi-encode "constructor(address)" <MARKET_ADDRESS>)
 ```
 
-Replace `<MARKET_ADDRESS>`, `<RECEIVER_ADDRESS>`, etc. with your actual deployed addresses.
+Replace `<MARKET_ADDRESS>`, `<RECEIVER_ADDRESS>`, `<BINARY_MARKET_ADDRESS>`, etc. with your actual deployed addresses.
 
 ## Create Test Markets
 
@@ -91,6 +97,9 @@ curl -X POST <WORKFLOW_URL> -d '{"market_id": <NEW_MARKET_ID>}'
 
 | Name | Network | Address | Block | Tx |
 |---|---|---|---:|---|
-| CREsolverMarket | Sepolia | [`0x499B178A5152Fb658dDbA1622B9B29Bb88561863`](https://sepolia.etherscan.io/address/0x499B178A5152Fb658dDbA1622B9B29Bb88561863) | 10322132 | [`0x03ac...5c6c`](https://sepolia.etherscan.io/tx/0x03ac636e8dcf873911950632cf8e6dd4ee38c37cc3f6d0778c8806777add5c6c) |
-| CREReceiver | Sepolia | [`0x81B324C2FA2c092d17752E5998b62A8CceaD2eA4`](https://sepolia.etherscan.io/address/0x81B324C2FA2c092d17752E5998b62A8CceaD2eA4) | 10322133 | [`0xe506...453f`](https://sepolia.etherscan.io/tx/0xe5068b34f7781f5499a89ee2de35fb4463610bd76aecd2b7c901b550efda453f) |
+| ~~CREsolverMarket v1~~ | Sepolia | ~~`0x499B178A5152Fb658dDbA1622B9B29Bb88561863`~~ | 10322132 | ~~`0x03ac...5c6c`~~ |
+| ~~CREReceiver v1~~ | Sepolia | ~~`0x81B324C2FA2c092d17752E5998b62A8CceaD2eA4`~~ | 10322133 | ~~`0xe506...453f`~~ |
+| CREsolverMarket v2 | Sepolia | [`0x9C09e483ecF768392306b358a8609B04e9b28fbb`](https://sepolia.etherscan.io/address/0x9C09e483ecF768392306b358a8609B04e9b28fbb) | — | — |
+| CREReceiver v2 | Sepolia | [`0x33c8832E146CFEc249459a4cEe8ba5DCF6d8AC59`](https://sepolia.etherscan.io/address/0x33c8832E146CFEc249459a4cEe8ba5DCF6d8AC59) | — | — |
+| BinaryMarket | Sepolia | [`0x56bd6A11bC23e48f0fc0BeA99A9DDCb899A3617c`](https://sepolia.etherscan.io/address/0x56bd6A11bC23e48f0fc0BeA99A9DDCb899A3617c) | — | — |
 

@@ -8,8 +8,9 @@ import {
   getMarketWorkersAbi,
   getReputationAbi,
   marketCountAbi,
+  getPoolAbi,
 } from "./contracts";
-import type { Market, AgentInfo, Reputation } from "./types";
+import type { Market, AgentInfo, Reputation, BettingPool } from "./types";
 
 // ─── Shared viem client ──────────────────────────────────────────────────────
 
@@ -158,6 +159,7 @@ export function useMarkets() {
             deadline: bigint;
             creator: Address;
             resolved: boolean;
+            resolution: boolean;
           };
 
           results.push({
@@ -167,6 +169,7 @@ export function useMarkets() {
             deadline: m.deadline,
             creator: m.creator,
             resolved: m.resolved,
+            resolution: m.resolution,
             workers: workers as Address[],
           });
         } catch {
@@ -242,4 +245,40 @@ export function useReputation() {
   }, [refresh]);
 
   return { agents, loading, refresh };
+}
+
+// ─── useBettingPool ─────────────────────────────────────────────────────────
+
+export function useBettingPool(marketId: number) {
+  const [pool, setPool] = useState<BettingPool | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    if (CONTRACTS.binaryMarket === "0x0000000000000000000000000000000000000000") {
+      setPool(null);
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      const data = await client.readContract({
+        address: CONTRACTS.binaryMarket,
+        abi: getPoolAbi,
+        functionName: "getPool",
+        args: [BigInt(marketId)],
+      });
+      const [yesTotal, noTotal, settled, outcome] = data as [bigint, bigint, boolean, boolean];
+      setPool({ yesTotal, noTotal, settled, outcome });
+    } catch {
+      setPool(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [marketId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { pool, loading, refresh };
 }

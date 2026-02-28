@@ -2,6 +2,10 @@
 
 import { CHAIN } from "@/lib/config";
 import { useWallet } from "@/lib/hooks";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 export default function Header() {
   const { address, isConnecting, connect, disconnect } = useWallet();
@@ -22,38 +26,40 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-4">
-          <a
-            href="https://eips.ethereum.org/EIPS/eip-8004"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
-          >
-            ERC-8004
-          </a>
-          <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
+          <Badge variant="accent" className="hidden sm:inline-flex" asChild>
+            <a
+              href="https://eips.ethereum.org/EIPS/eip-8004"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:bg-accent/20 transition-colors"
+            >
+              ERC-8004
+            </a>
+          </Badge>
+
+          <Badge variant="success" className="hidden sm:inline-flex">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 pulse-dot" />
             {CHAIN.name}
-          </span>
-          
-          <div className="h-4 w-px bg-navy-600 hidden sm:block"></div>
+          </Badge>
+
+          <Separator orientation="vertical" className="hidden sm:block" />
 
           {address ? (
-            <button
-              onClick={disconnect}
-              className="inline-flex items-center gap-2 rounded-lg border border-navy-600 bg-navy-800 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-navy-700 hover:text-white"
-              title="Disconnect"
-            >
-              <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
-              {address.slice(0, 6)}...{address.slice(-4)}
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" onClick={disconnect} title="Disconnect">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                  {address.slice(0, 6)}...{address.slice(-4)}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="font-mono">{address}</p>
+              </TooltipContent>
+            </Tooltip>
           ) : (
-            <button
-              onClick={connect}
-              disabled={isConnecting}
-              className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-400 hover:shadow-lg hover:shadow-accent/20 disabled:opacity-70"
-            >
+            <Button onClick={connect} disabled={isConnecting}>
               {isConnecting ? "Connecting..." : "Connect Wallet"}
-            </button>
+            </Button>
           )}
         </div>
       </div>

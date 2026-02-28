@@ -1,36 +1,33 @@
 import type { MarketStatus } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
 
-const config: Record<MarketStatus, { label: string; style: string }> = {
+const config: Record<MarketStatus, { label: string; variant: "open" | "awaiting" | "resolved"; dotColor: string; pulse: boolean }> = {
   open: {
     label: "Open",
-    style: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+    variant: "open",
+    dotColor: "bg-emerald-400",
+    pulse: true,
   },
   awaiting_resolution: {
     label: "Awaiting Resolution",
-    style: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+    variant: "awaiting",
+    dotColor: "bg-amber-400",
+    pulse: false,
   },
   resolved: {
     label: "Resolved",
-    style: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+    variant: "resolved",
+    dotColor: "bg-blue-400",
+    pulse: false,
   },
 };
 
 export default function StatusBadge({ status }: { status: MarketStatus }) {
-  const { label, style } = config[status];
+  const { label, variant, dotColor, pulse } = config[status];
   return (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`}
-    >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${
-          status === "open"
-            ? "bg-emerald-400 pulse-dot"
-            : status === "awaiting_resolution"
-              ? "bg-amber-400"
-              : "bg-blue-400"
-        }`}
-      />
+    <Badge variant={variant} className="shrink-0">
+      <span className={`h-1.5 w-1.5 rounded-full ${dotColor} ${pulse ? "pulse-dot" : ""}`} />
       {label}
-    </span>
+    </Badge>
   );
 }

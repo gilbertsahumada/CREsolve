@@ -10,6 +10,21 @@ interface ChangelogEntry {
 const entries: ChangelogEntry[] = [
   {
     date: "2026-02-28",
+    version: "v0.7.0",
+    title: "shadcn UI Refactor + Pagination",
+    description:
+      "Full UI overhaul replacing hand-rolled Tailwind components with shadcn primitives. Added client-side pagination, tooltips, and improved contrast across the dashboard.",
+    type: "improvement",
+    highlights: [
+      "Replaced all hand-rolled components with shadcn Card, Badge, Button, Tabs, Tooltip, Separator, Skeleton",
+      "Client-side pagination (6 per page) on the Markets grid with page navigation",
+      "Filter tabs upgraded to Radix Tabs with active-state counts",
+      "Tooltips on wallet addresses, quorum indicator, and worker panels",
+      "Improved contrast and readability: brighter text, better badge borders, visible reputation bar tracks",
+    ],
+  },
+  {
+    date: "2026-02-28",
     version: "v0.6.0",
     title: "Market Management & Resolution Controls",
     description:

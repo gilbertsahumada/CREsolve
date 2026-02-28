@@ -10,6 +10,11 @@ import { checkAgentOwnership, getAgentWallet, checkResolutionRequested } from "@
 import { CONTRACTS, AGENTS, etherscanAddress, trust8004Url } from "@/lib/config";
 import { buyYesAbi, buyNoAbi, settleAbi, claimAbi, joinMarketAbi, joinOnBehalfAbi, requestResolutionAbi } from "@/lib/contracts";
 import StatusBadge from "./StatusBadge";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 type TxState =
   | { status: "idle" }
@@ -210,8 +215,8 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
   }
 
   return (
-    <div
-      className="flex flex-col justify-between rounded-2xl border border-navy-700 bg-navy-800/40 p-5 transition-all hover:bg-navy-800/60 hover:border-navy-600 shadow-sm hover:shadow-md"
+    <Card
+      className="flex flex-col justify-between p-5 transition-all hover:bg-navy-800/80 hover:border-navy-600 shadow-sm hover:shadow-md"
     >
       <div>
         {/* Header: question + badge */}
@@ -225,13 +230,13 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
         </div>
 
         {/* Stats row */}
-        <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-          <span className="flex items-center gap-1.5 rounded-md bg-accent/10 px-2 py-1 text-accent font-medium border border-accent/20">
+        <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+          <Badge variant="outline" className="border-accent/20 bg-accent/10 text-accent font-medium">
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
             </svg>
             {rewardStr} ETH Pool
-          </span>
+          </Badge>
 
           <button
             onClick={() => setShowWorkers((v) => !v)}
@@ -247,21 +252,22 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
           </button>
 
           {totalBets > zero && (
-            <span className="flex items-center gap-1.5 text-slate-400">
+            <Badge variant="outline" className="text-slate-300">
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
               </svg>
               {formatEther(totalBets)} ETH bets
-            </span>
+            </Badge>
           )}
 
-          <span
-            className={`flex items-center gap-1.5 ${
+          <Badge
+            variant="outline"
+            className={`${
               status === "open"
-                ? "text-emerald-400"
+                ? "border-emerald-500/30 text-emerald-400"
                 : status === "awaiting_resolution"
-                  ? "text-amber-400"
-                  : "text-slate-500"
+                  ? "border-amber-500/30 text-amber-400"
+                  : "border-slate-600 text-slate-400"
             }`}
           >
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -273,7 +279,7 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
             ) : (
               <span>{formatRelativeDeadline(market)}</span>
             )}
-          </span>
+          </Badge>
         </div>
 
         {/* Expandable Workers Panel */}
@@ -291,30 +297,39 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
                       <div className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/20 text-[9px] font-bold text-accent">
                         {label[0]}
                       </div>
-                      <a
-                        href={etherscanAddress(w.address)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs font-medium text-slate-200 hover:text-accent transition-colors"
-                      >
-                        {label}
-                      </a>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <a
+                            href={etherscanAddress(w.address)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-medium text-slate-200 hover:text-accent transition-colors"
+                          >
+                            {label}
+                          </a>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="font-mono">{w.address}</p>
+                        </TooltipContent>
+                      </Tooltip>
                       {agent && (
-                        <a
-                          href={trust8004Url(agent.agentId)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-0.5 rounded-full border border-accent/20 bg-accent/5 px-1.5 py-0.5 text-[9px] text-accent hover:bg-accent/10 transition-colors"
-                        >
-                          <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                          </svg>
-                          ERC-8004
-                        </a>
+                        <Badge variant="accent" className="text-[9px] px-1.5 py-0.5" asChild>
+                          <a
+                            href={trust8004Url(agent.agentId)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:bg-accent/20 transition-colors"
+                          >
+                            <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            </svg>
+                            ERC-8004
+                          </a>
+                        </Badge>
                       )}
                     </div>
                     {w.reputation.count > 0 && (
-                      <span className="text-[10px] text-slate-500">
+                      <span className="text-[10px] text-slate-400">
                         {w.reputation.count} resolution{w.reputation.count !== 1 ? "s" : ""}
                       </span>
                     )}
@@ -327,7 +342,7 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
                 </div>
               );
             })}
-            <p className="text-[10px] text-slate-500 pt-1 border-t border-navy-700/50">
+            <p className="text-[11px] text-slate-400 pt-1 border-t border-navy-700/50">
               Reputation sourced from ERC-8004 on-chain reviews &mdash;{" "}
               <a
                 href="https://www.trust8004.xyz"
@@ -345,12 +360,13 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
         {status === "open" && !marketFull && (
           <div className="mb-4">
             {!showJoin ? (
-              <button
+              <Button
+                variant="outline"
+                className="w-full border-dashed border-accent/30 bg-accent/5 text-accent hover:bg-accent/10 hover:border-accent/50"
                 onClick={() => setShowJoin(true)}
-                className="w-full rounded-xl border border-dashed border-accent/30 bg-accent/5 px-4 py-2.5 text-sm font-medium text-accent transition-all hover:bg-accent/10 hover:border-accent/50"
               >
                 + Join as Worker (stake 0.0001 ETH)
-              </button>
+              </Button>
             ) : (
               <div className="space-y-3 rounded-lg border border-navy-700/50 bg-navy-900/30 p-3">
                 <p className="text-xs font-medium text-slate-400">Enter your ERC-8004 Agent ID:</p>
@@ -372,14 +388,15 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
                     placeholder="Agent ID (e.g. 1299)"
                     className="flex-1 rounded-lg border border-navy-700 bg-navy-900/50 px-3 py-2 text-sm font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-accent/40"
                   />
-                  <button
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={handleVerifyAgent}
                     disabled={!address || !agentIdInput || Number(agentIdInput) <= 0 || ownershipStatus === "checking"}
-                    className="rounded-lg border border-navy-700 bg-navy-800/50 px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:bg-navy-700 hover:text-white disabled:opacity-50 flex items-center gap-1.5"
                   >
                     {ownershipStatus === "checking" && <Loader2 className="h-3 w-3 animate-spin" />}
                     Verify
-                  </button>
+                  </Button>
                 </div>
 
                 {/* Ownership result */}
@@ -391,23 +408,26 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
                     </div>
                     {agentWallet && (
                       <div className="flex items-center gap-1.5 rounded-md bg-navy-800/50 px-3 py-2 text-xs text-slate-400">
-                        <span className="text-slate-500">Agent wallet:</span>
-                        <a
-                          href={etherscanAddress(agentWallet)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-mono text-accent hover:text-blue-300 transition-colors"
-                        >
-                          {agentWallet.slice(0, 6)}...{agentWallet.slice(-4)}
-                        </a>
+                        <span className="text-slate-400">Agent wallet:</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <a
+                              href={etherscanAddress(agentWallet)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-accent hover:text-blue-300 transition-colors"
+                            >
+                              {agentWallet.slice(0, 6)}...{agentWallet.slice(-4)}
+                            </a>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="font-mono">{agentWallet}</p>
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                     )}
                     {agentWallet && address && (
-                      <div className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-xs ${
-                        agentWallet.toLowerCase() === address.toLowerCase()
-                          ? "bg-blue-500/10 border border-blue-500/20 text-blue-400"
-                          : "bg-blue-500/10 border border-blue-500/20 text-blue-400"
-                      }`}>
+                      <div className="flex items-center gap-1.5 rounded-md px-3 py-2 text-xs bg-blue-500/10 border border-blue-500/20 text-blue-400">
                         <span>
                           {agentWallet.toLowerCase() === address.toLowerCase()
                             ? "Joining as agent directly"
@@ -428,28 +448,32 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
                 <div className="rounded-md bg-navy-800/50 px-3 py-2 text-xs text-slate-400">
                   Required stake: <span className="font-medium text-slate-200">0.0001 ETH</span>
                   {ethPrice && (
-                    <span className="text-slate-500"> (~${(0.0001 * ethPrice).toFixed(2)})</span>
+                    <span className="text-slate-400"> (~${(0.0001 * ethPrice).toFixed(2)})</span>
                   )}
                 </div>
 
                 {/* Actions */}
                 <div className="flex gap-2">
-                  <button
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
                     onClick={() => { setShowJoin(false); setAgentIdInput(""); setOwnershipStatus("idle"); setOwnershipError(""); setAgentWallet(null); }}
-                    className="flex-1 rounded-lg border border-navy-700 px-3 py-2 text-xs font-medium text-slate-400 transition-colors hover:text-slate-200"
                   >
                     Cancel
-                  </button>
+                  </Button>
                   {!address ? (
-                    <p className="flex-1 text-center text-xs text-slate-500 py-2">Connect wallet to join</p>
+                    <p className="flex-1 text-center text-xs text-slate-400 py-2">Connect wallet to join</p>
                   ) : (
-                    <button
+                    <Button
+                      variant="accent"
+                      size="sm"
+                      className="flex-1"
                       onClick={handleJoinMarket}
                       disabled={ownershipStatus !== "valid" || joinTxPending}
-                      className="flex-1 rounded-lg bg-accent/20 px-3 py-2 text-xs font-semibold text-accent transition-all hover:bg-accent/30 disabled:opacity-50"
                     >
                       {joinTxPending ? "Joining..." : "Join Market"}
-                    </button>
+                    </Button>
                   )}
                 </div>
 
@@ -464,7 +488,7 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
         {/* Market full indicator */}
         {status === "open" && marketFull && (
           <div className="mb-4 rounded-lg bg-navy-900/30 border border-navy-700/50 p-3">
-            <p className="text-center text-xs text-slate-500">Market full (10/10 workers)</p>
+            <p className="text-center text-xs text-slate-400">Market full (10/10 workers)</p>
           </div>
         )}
 
@@ -477,7 +501,7 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
               <div className="bg-red-500 transition-all" style={{ width: `${probNo}%` }} />
             </div>
 
-            {/* USD Input (shadcn style) */}
+            {/* USD Input */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between rounded-lg border border-navy-600 bg-navy-900/50 p-1">
                 <button
@@ -510,7 +534,7 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
                 </button>
               </div>
 
-              <div className="flex justify-between px-1 text-[10px] text-slate-500">
+              <div className="flex justify-between px-1 text-[11px] text-slate-400">
                 <span>Amount in USD</span>
                 <span>&asymp; {ethPrice ? ethAmount : "..."} ETH</span>
               </div>
@@ -518,26 +542,26 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
 
             {/* Buy Buttons */}
             <div className="flex gap-3">
-              <button
+              <Button
                 onClick={handleBuyYes}
                 disabled={txPending || !address || !ethPrice}
-                className="group relative flex flex-1 items-center justify-between overflow-hidden rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 transition-all hover:bg-emerald-500/20 hover:border-emerald-500/50 disabled:opacity-50"
+                className="flex-1 justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/50"
               >
-                <span className="font-semibold text-emerald-400">Buy Yes</span>
+                <span className="font-semibold">Buy Yes</span>
                 <span className="font-mono text-sm text-emerald-400/80">{probYes}%</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleBuyNo}
                 disabled={txPending || !address || !ethPrice}
-                className="group relative flex flex-1 items-center justify-between overflow-hidden rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 transition-all hover:bg-red-500/20 hover:border-red-500/50 disabled:opacity-50"
+                className="flex-1 justify-between rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:border-red-500/50"
               >
-                <span className="font-semibold text-red-400">Buy No</span>
+                <span className="font-semibold">Buy No</span>
                 <span className="font-mono text-sm text-red-400/80">{probNo}%</span>
-              </button>
+              </Button>
             </div>
 
             {!address && (
-              <p className="text-center text-xs text-slate-500">Connect wallet to place bets</p>
+              <p className="text-center text-xs text-slate-400">Connect wallet to place bets</p>
             )}
 
             {/* Transaction Status Banner */}
@@ -555,16 +579,16 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
               <div className="bg-red-500 transition-all" style={{ width: "50%" }} />
             </div>
             <div className="flex gap-3">
-              <button className="group relative flex flex-1 items-center justify-between overflow-hidden rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 transition-all hover:bg-emerald-500/20 hover:border-emerald-500/50 opacity-50 cursor-not-allowed">
-                <span className="font-semibold text-emerald-400">Buy Yes</span>
+              <Button className="flex-1 justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 opacity-50 cursor-not-allowed" disabled>
+                <span className="font-semibold">Buy Yes</span>
                 <span className="font-mono text-sm text-emerald-400/80">50%</span>
-              </button>
-              <button className="group relative flex flex-1 items-center justify-between overflow-hidden rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 transition-all hover:bg-red-500/20 hover:border-red-500/50 opacity-50 cursor-not-allowed">
-                <span className="font-semibold text-red-400">Buy No</span>
+              </Button>
+              <Button className="flex-1 justify-between rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 opacity-50 cursor-not-allowed" disabled>
+                <span className="font-semibold">Buy No</span>
                 <span className="font-mono text-sm text-red-400/80">50%</span>
-              </button>
+              </Button>
             </div>
-            <p className="text-center text-xs text-slate-500">BinaryMarket not deployed yet</p>
+            <p className="text-center text-xs text-slate-400">BinaryMarket not deployed yet</p>
           </div>
         )}
 
@@ -577,16 +601,16 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
               </p>
             </div>
             {!address ? (
-              <p className="text-center text-xs text-slate-500">Connect wallet to request resolution</p>
+              <p className="text-center text-xs text-slate-400">Connect wallet to request resolution</p>
             ) : (
-              <button
+              <Button
                 onClick={handleRequestResolution}
                 disabled={txPending}
-                className="w-full rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm font-semibold text-amber-400 transition-all hover:bg-amber-500/20 hover:border-amber-500/50 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 hover:border-amber-500/50"
               >
                 {txPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Request Resolution
-              </button>
+              </Button>
             )}
             {txState.status !== "idle" && (
               <TxBanner state={txState} onDismiss={() => setTxState({ status: "idle" })} />
@@ -613,23 +637,23 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
             </div>
 
             {binaryMarketDeployed && pool && !pool.settled && totalBets > zero && (
-              <button
+              <Button
                 onClick={handleSettle}
                 disabled={txPending || !address}
-                className="w-full rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm font-semibold text-amber-400 transition-all hover:bg-amber-500/20 disabled:opacity-50"
+                className="w-full rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
               >
                 Settle (earn 1% fee: {formatEther((totalBets * feeBps) / bps)} ETH)
-              </button>
+              </Button>
             )}
 
             {binaryMarketDeployed && pool?.settled && (
-              <button
+              <Button
                 onClick={handleClaim}
                 disabled={txPending || !address}
-                className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-400 transition-all hover:bg-emerald-500/20 disabled:opacity-50"
+                className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
               >
                 Claim Winnings
-              </button>
+              </Button>
             )}
 
             {txState.status !== "idle" && (
@@ -640,24 +664,34 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
       </div>
 
       {/* Footer */}
-      <div className="mt-2 flex items-center justify-between border-t border-navy-700/50 pt-4">
-        <div className="text-[11px] text-slate-500">
-          Ends: {deadlineDate.toLocaleDateString()} {deadlineDate.toLocaleTimeString()}
+      <div className="mt-2 pt-4">
+        <Separator className="mb-4" />
+        <div className="flex items-center justify-between">
+          <div className="text-[11px] text-slate-400">
+            Ends: {deadlineDate.toLocaleDateString()} {deadlineDate.toLocaleTimeString()}
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <a
+                href={`https://sepolia.etherscan.io/address/${market.creator}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-[11px] text-slate-400 hover:text-accent transition-colors flex items-center gap-1"
+              >
+                #{market.id} &middot; {market.creator.slice(0, 6)}...{market.creator.slice(-4)}
+                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
+                </svg>
+              </a>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Market #{market.id}</p>
+              <p className="font-mono text-slate-400">{market.creator}</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
-        <a
-          href={`https://sepolia.etherscan.io/address/${market.creator}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-mono text-[11px] text-slate-500 hover:text-accent transition-colors flex items-center gap-1"
-          title={`Market #${market.id} · Creator: ${market.creator}`}
-        >
-          #{market.id} &middot; {market.creator.slice(0, 6)}...{market.creator.slice(-4)}
-          <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
-          </svg>
-        </a>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -667,8 +701,8 @@ function MiniRepBar({ label, value, color }: { label: string; value: number; col
   return (
     <div className="space-y-0.5">
       <div className="flex justify-between text-[9px]">
-        <span className="text-slate-500">{label}</span>
-        <span className="text-slate-400">{value}</span>
+        <span className="text-slate-400">{label}</span>
+        <span className="text-slate-300">{value}</span>
       </div>
       <div className="h-1 w-full overflow-hidden rounded-full bg-navy-700">
         <div className="h-full rounded-full transition-all" style={{ width: `${value}%`, backgroundColor: color }} />

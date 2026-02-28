@@ -5,6 +5,11 @@ import { useMarkets } from "@/lib/hooks";
 import { getMarketStatus, sortMarkets, type MarketStatus } from "@/lib/types";
 import MarketCard from "./MarketCard";
 import CreateMarketModal from "./CreateMarketModal";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Pagination } from "@/components/ui/pagination";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Filter = "all" | MarketStatus;
 
@@ -15,10 +20,13 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "resolved", label: "Resolved" },
 ];
 
+const ITEMS_PER_PAGE = 6;
+
 export default function MarketList() {
   const { markets, loading, error, refresh } = useMarkets();
   const [filter, setFilter] = useState<Filter>("all");
   const [showCreate, setShowCreate] = useState(false);
+  const [page, setPage] = useState(1);
 
   const sorted = useMemo(() => sortMarkets(markets), [markets]);
 
@@ -30,60 +38,47 @@ export default function MarketList() {
     [sorted, filter]
   );
 
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+
   const counts = useMemo(() => {
     const c = { all: markets.length, open: 0, awaiting_resolution: 0, resolved: 0 };
     for (const m of markets) c[getMarketStatus(m)]++;
     return c;
   }, [markets]);
 
+  function handleFilterChange(value: string) {
+    setFilter(value as Filter);
+    setPage(1);
+  }
+
   return (
     <section>
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
           Markets
         </h2>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowCreate(true)}
-            className="rounded-lg bg-accent/20 px-3 py-1.5 text-xs font-semibold text-accent transition-colors hover:bg-accent/30"
-          >
+          <Button variant="accent" size="sm" onClick={() => setShowCreate(true)}>
             + Create Market
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={refresh}
             disabled={loading}
-            className="text-xs text-accent hover:text-blue-300 transition-colors disabled:opacity-50"
           >
             {loading ? "Loading..." : "Refresh"}
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* Filter tabs */}
-      {markets.length > 0 && (
-        <div className="mb-4 flex gap-1.5">
-          {FILTERS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                filter === key
-                  ? "bg-accent/20 text-accent"
-                  : "bg-navy-800 text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              {label}
-              <span
-                className={`rounded-full px-1.5 py-0.5 text-[10px] leading-none ${
-                  filter === key
-                    ? "bg-accent/30 text-accent"
-                    : "bg-navy-700 text-slate-500"
-                }`}
-              >
-                {counts[key]}
-              </span>
-            </button>
+      {/* Loading state */}
+      {loading && (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-72 border border-navy-700" />
           ))}
         </div>
       )}
@@ -98,30 +93,57 @@ export default function MarketList() {
       {/* Empty state */}
       {!loading && !error && markets.length === 0 && (
         <div className="rounded-lg border border-navy-700 bg-navy-800/30 p-8 text-center">
-          <p className="mb-3 text-sm text-slate-500">No markets found on Sepolia.</p>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="rounded-lg bg-accent/20 px-4 py-2 text-sm font-semibold text-accent transition-colors hover:bg-accent/30"
-          >
+          <p className="mb-3 text-sm text-slate-400">No markets found on Sepolia.</p>
+          <Button variant="accent" onClick={() => setShowCreate(true)}>
             Create Your First Market
-          </button>
+          </Button>
         </div>
       )}
 
-      {/* Filtered empty */}
-      {!loading && !error && markets.length > 0 && filtered.length === 0 && (
-        <div className="rounded-lg border border-navy-700 bg-navy-800/30 p-6 text-center text-sm text-slate-500">
-          No {filter === "awaiting_resolution" ? "awaiting resolution" : filter}{" "}
-          markets.
-        </div>
-      )}
+      {/* Filter tabs + content */}
+      {!loading && markets.length > 0 && (
+        <Tabs value={filter} onValueChange={handleFilterChange}>
+          <TabsList>
+            {FILTERS.map(({ key, label }) => (
+              <TabsTrigger key={key} value={key}>
+                {label}
+                <Badge
+                  variant={filter === key ? "accent" : "default"}
+                  className="ml-1 px-1.5 py-0 text-[10px] leading-tight"
+                >
+                  {counts[key]}
+                </Badge>
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-      {/* Market cards */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((market) => (
-          <MarketCard key={market.id} market={market} onRefresh={refresh} />
-        ))}
-      </div>
+          {/* All tab contents share the same rendering, so we use a single content block */}
+          {FILTERS.map(({ key }) => (
+            <TabsContent key={key} value={key}>
+              {filtered.length === 0 ? (
+                <div className="rounded-lg border border-navy-700 bg-navy-800/30 p-6 text-center text-sm text-slate-400">
+                  No {key === "awaiting_resolution" ? "awaiting resolution" : key}{" "}
+                  markets.
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {paginated.map((market) => (
+                      <MarketCard key={market.id} market={market} onRefresh={refresh} />
+                    ))}
+                  </div>
+                  <Pagination
+                    currentPage={page}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                    className="mt-6"
+                  />
+                </>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
+      )}
 
       {/* Create Market Modal */}
       <CreateMarketModal

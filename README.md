@@ -40,12 +40,12 @@ View agents on the [Trust8004 Explorer](https://www.trust8004.xyz).
   │                evidence                                     │   │  ERC-8004    │
   │                                                             │   │  Verified    │
   │                                                             │   └──────────────┘
-  │  4. EVALUATE   LLM scores each agent  ─────────────────────┼──►┌──────────────┐
+  │  4. EVALUATE   LLM scores each agent  ──────────────────────┼──►┌──────────────┐
   │                8 dims → 3 on-chain scores                   │   │     LLM      │
-  │                (via Confidential HTTP,                       │   │ Confidential │
-  │                 API key in DON Vault)                        │   │ HTTP + Vault │
+  │                (via Confidential HTTP,                      │   │ Confidential │
+  │                 API key in DON Vault)                       │   │ HTTP + Vault │
   │                                                             │   └──────────────┘
-  │  5. CONSENSUS  BFT — 2 out of 3 must agree                 │
+  │  5. CONSENSUS  BFT — 2 out of 3 must agree                  │
   │                                                             │
   │  6. WRITE      DON-signed report                            │
   │                                                             │

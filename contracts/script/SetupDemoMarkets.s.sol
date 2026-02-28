@@ -9,7 +9,7 @@ import {CREsolverMarket} from "../src/CREsolverMarket.sol";
  * @notice Creates 8 demo markets for the frontend:
  *         - 3 with 1-minute duration (expire quickly → "Expired" in frontend)
  *         - 5 with varying durations (stay "Open" for demo)
- *         All markets get 3 workers auto-joined.
+ *         Workers auto-join only the first 5 markets; markets 5-7 remain open.
  *
  * Required env:
  *   DEPLOYER_KEY   – private key of the market creator (needs ETH)
@@ -82,17 +82,21 @@ contract SetupDemoMarketsScript is Script {
             console.log("Market #%d: %s", id, markets[m].question);
             console.log("  Duration: %d seconds", markets[m].durationSeconds);
 
-            // Workers join
-            for (uint256 w = 0; w < 3; w++) {
-                vm.startBroadcast(workerKeys[w]);
-                market.joinMarket{value: stakeWei}(id, agentIds[w]);
-                vm.stopBroadcast();
+            // Workers join only first 5 markets
+            if (m < 5) {
+                for (uint256 w = 0; w < 3; w++) {
+                    vm.startBroadcast(workerKeys[w]);
+                    market.joinMarket{value: stakeWei}(id, agentIds[w]);
+                    vm.stopBroadcast();
+                }
+                console.log("  3 workers joined\n");
+            } else {
+                console.log("  No workers (open for joining)\n");
             }
-            console.log("  3 workers joined\n");
         }
 
         console.log("========================================");
-        console.log("  8 demo markets created!");
+        console.log("  8 demo markets created (5 with workers, 3 open)!");
         console.log("  Contract: %s", marketAddr);
         console.log("========================================\n");
     }

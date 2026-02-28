@@ -9,7 +9,7 @@ import {AlreadyJoined, NotAgentOwner} from "../src/lib/CREsolverMarketErrors.sol
 
 contract CREsolverMarketForkTest is Test {
     // Deployed contracts on Sepolia
-    address constant DEPLOYED_MARKET = 0x6E61036B4627e7bD0F8157Cf26dafbCCBE43DA96;
+    address constant DEPLOYED_MARKET = 0x9B8927d8F78e82C3Be1a233519EDD9e353A318D2;
     address constant IDENTITY_REGISTRY = 0x8004A818BFB912233c491871b3d84c89A494BD9e;
 
     CREsolverMarket internal market;
@@ -81,20 +81,23 @@ contract CREsolverMarketForkTest is Test {
     function test_worker_already_joined_reverts() public {
         if (!forkEnabled) return;
 
-        // Market #0 was created by DeploySepolia and workers already joined.
-        // Trying to join again should revert.
+        // Market #3 has a 1-day duration (stays active long enough for testing).
+        // Workers already joined via SetupDemoMarkets, so joining again should revert.
+        uint256 mid = 3;
         vm.deal(worker, 1 ether);
         vm.prank(worker);
         vm.expectRevert(
-            abi.encodeWithSelector(AlreadyJoined.selector, 0, worker)
+            abi.encodeWithSelector(AlreadyJoined.selector, mid, worker)
         );
-        market.joinMarket{value: 0.005 ether}(0, workerAgentId);
+        market.joinMarket{value: 0.005 ether}(mid, workerAgentId);
     }
 
     function test_unauthorized_worker_reverts() public {
         if (!forkEnabled) return;
 
         // A random address should not be able to join with someone else's agentId
+        // Use market #3 (1-day duration, stays active)
+        uint256 mid = 3;
         address unauthorizedWorker = makeAddr("unauthorizedWorker");
         vm.deal(unauthorizedWorker, 1 ether);
 
@@ -102,13 +105,13 @@ contract CREsolverMarketForkTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(NotAgentOwner.selector, unauthorizedWorker, workerAgentId)
         );
-        market.joinMarket{value: 0.005 ether}(0, workerAgentId);
+        market.joinMarket{value: 0.005 ether}(mid, workerAgentId);
     }
 
     function test_resolve_market_on_fork() public {
         if (!forkEnabled) return;
 
-        uint256 mid = 0;
+        uint256 mid = 3;
         Market memory m = market.getMarket(mid);
         require(!m.resolved, "Market already resolved");
 
@@ -169,8 +172,9 @@ contract CREsolverMarketForkTest is Test {
     function test_market_state_is_consistent() public view {
         if (!forkEnabled) return;
 
-        Market memory m = market.getMarket(0);
-        address[] memory workers = market.getMarketWorkers(0);
+        uint256 mid = 3;
+        Market memory m = market.getMarket(mid);
+        address[] memory workers = market.getMarketWorkers(mid);
 
         // Market exists and has data
         assertTrue(bytes(m.question).length > 0, "Market should have a question");
@@ -183,7 +187,7 @@ contract CREsolverMarketForkTest is Test {
 
         // Each worker has a stake
         for (uint256 i = 0; i < workers.length; i++) {
-            uint256 stake = market.stakes(0, workers[i]);
+            uint256 stake = market.stakes(mid, workers[i]);
             assertTrue(stake > 0, "Each worker should have a stake");
         }
     }

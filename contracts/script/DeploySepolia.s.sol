@@ -11,7 +11,7 @@ import {BinaryMarket} from "../src/BinaryMarket.sol";
  * @notice Deploys CREsolverMarket on Sepolia with ERC-8004 registries.
  *         If KEYSTONE_FORWARDER is provided, it also deploys CREReceiver
  *         and authorizes it as resolver.
- *         Then creates a test market and has workers join with their agentIds.
+ *         Does NOT create any markets — use SetupDemoMarkets.s.sol for that.
  *
  * Prerequisites:
  *   1. Run `yarn sepolia:wallets` to create worker wallets
@@ -94,29 +94,7 @@ contract DeploySepoliaScript is Script {
         BinaryMarket binary = new BinaryMarket(address(market));
         console.log("  BinaryMarket: %s", address(binary));
 
-        // 4. Create a test market
-        uint256 marketId = market.createMarket{value: 0.01 ether}(
-            "Will bitcoin reach 200k by end of 2026?",
-            7 days
-        );
-        console.log("\n  Market #%d created", marketId);
-        console.log("    Question: Will bitcoin reach 200k by end of 2026?");
-        console.log("    Reward: 0.01 ETH");
-        console.log("    Duration: 7 days");
-
         vm.stopBroadcast();
-
-        // ── Workers join market ─────────────────────────────────────────
-        console.log("\n=== Workers joining market ===");
-
-        for (uint256 i = 0; i < 3; i++) {
-            vm.startBroadcast(workerKeys[i]);
-
-            market.joinMarket{value: 0.0005 ether}(marketId, agentIds[i]);
-            console.log("  %s joined (agentId: %d, stake: 0.0005 ETH)", names[i], agentIds[i]);
-
-            vm.stopBroadcast();
-        }
 
         // ── Summary ─────────────────────────────────────────────────────
         console.log("\n========================================");
@@ -125,9 +103,8 @@ contract DeploySepoliaScript is Script {
         console.log("  CREsolverMarket: %s", address(market));
         console.log("  CREReceiver: %s", receiverAddress);
         console.log("  BinaryMarket: %s", address(binary));
-        console.log("  Market ID: %d", marketId);
-        console.log("  Workers: 3 (with ERC-8004 identity)");
         console.log("  Network: Sepolia");
+        console.log("  Markets: 0 (use SetupDemoMarkets.s.sol)");
         console.log("========================================\n");
     }
 }

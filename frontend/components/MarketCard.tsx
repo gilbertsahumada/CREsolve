@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatEther, parseEther, encodeFunctionData } from "viem";
 import { Minus, Plus, ExternalLink, Loader2, CheckCircle2, XCircle, ChevronDown } from "lucide-react";
 import type { Market } from "@/lib/types";
 import { getMarketStatus, formatRelativeDeadline } from "@/lib/types";
 import { useBettingPool, useWallet, useEthPrice, waitForTx } from "@/lib/hooks";
-import { checkAgentOwnership, getAgentWallet } from "@/lib/blockchain";
+import { checkAgentOwnership, getAgentWallet, checkResolutionRequested } from "@/lib/blockchain";
 import { CONTRACTS, AGENTS, etherscanAddress, trust8004Url } from "@/lib/config";
 import { buyYesAbi, buyNoAbi, settleAbi, claimAbi, joinMarketAbi, joinOnBehalfAbi, requestResolutionAbi } from "@/lib/contracts";
 import StatusBadge from "./StatusBadge";
@@ -40,8 +40,14 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
   const [joinTxState, setJoinTxState] = useState<TxState>({ status: "idle" });
   const joinTxPending = joinTxState.status === "pending" || joinTxState.status === "confirming";
 
-  // Request Resolution state
+  // Request Resolution state — check on-chain logs on mount
   const [resolutionRequested, setResolutionRequested] = useState(false);
+
+  useEffect(() => {
+    if (status === "awaiting_resolution" && !resolutionRequested) {
+      checkResolutionRequested(market.id).then(setResolutionRequested);
+    }
+  }, [market.id, status]);
 
   // Calculate ETH equivalent
   const ethAmount = ethPrice ? (usdAmount / ethPrice).toFixed(6) : "0";

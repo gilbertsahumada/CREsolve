@@ -1,4 +1,4 @@
-import { createPublicClient, http, type Address } from "viem";
+import { createPublicClient, http, parseAbiItem, type Address } from "viem";
 import { CHAIN, CONTRACTS, RPC_URL } from "./config";
 import { isAuthorizedOrOwnerAbi, getAgentWalletAbi } from "./contracts";
 
@@ -41,5 +41,24 @@ export async function getAgentWallet(
     return addr === ZERO_ADDRESS ? null : addr;
   } catch {
     return null;
+  }
+}
+
+export async function checkResolutionRequested(
+  marketId: number
+): Promise<boolean> {
+  try {
+    const logs = await client.getLogs({
+      address: CONTRACTS.market,
+      event: parseAbiItem(
+        "event ResolutionRequested(uint256 indexed marketId, string question)"
+      ),
+      args: { marketId: BigInt(marketId) },
+      fromBlock: "earliest",
+      toBlock: "latest",
+    });
+    return logs.length > 0;
+  } catch {
+    return false;
   }
 }

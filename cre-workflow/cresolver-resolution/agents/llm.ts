@@ -14,7 +14,7 @@ import type {
 
 // ConfidentialHTTPClient protects the NVIDIA API key via DON Vault secret
 // injection. The key is resolved inside the enclave using template syntax
-// ({{.NVIDIA_API_KEY}}) and never appears in code, logs, or node memory.
+// ({{.CRE_NVIDIA_API_KEY}}) and never appears in code, logs, or node memory.
 //
 // We intentionally do NOT use encryptOutput because we process the LLM
 // response inside this workflow (aggregate 8 dimensions → 3 on-chain scores).
@@ -165,13 +165,13 @@ export function evaluateWithLLM(
 
   const response = confidentialClient
     .sendRequest(runtime, {
-      vaultDonSecrets: [{ key: "NVIDIA_API_KEY", namespace: "cresolver" }],
+      vaultDonSecrets: [{ key: "CRE_NVIDIA_API_KEY", namespace: "cresolver" }],
       request: {
         url: "https://integrate.api.nvidia.com/v1/chat/completions",
         method: "POST",
         multiHeaders: {
           "Content-Type": { values: ["application/json"] },
-          Authorization: { values: ["Bearer {{.NVIDIA_API_KEY}}"] },
+          Authorization: { values: ["Bearer {{.CRE_NVIDIA_API_KEY}}"] },
         },
         bodyString: body,
         timeout: "60s",

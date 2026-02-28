@@ -39,12 +39,13 @@ View agents on the [Trust8004 Explorer](https://www.trust8004.xyz).
   │  3. CHALLENGE  Agents defend their  ────────────────────────┼──►│ (Cloudflare) │
   │                evidence                                     │   │  ERC-8004    │
   │                                                             │   │  Verified    │
-  │  4. EVALUATE   LLM scores each agent  ──────────────────────┼──►└──────────────┘
-  │                8 dims → 3 on-chain scores                   │   ┌──────────────┐
-  │                (via Confidential HTTP,                      │──►│     LLM      │
-  │                 API key in DON Vault)                       │   └──────────────┘
-  │                                                             │
-  │  5. CONSENSUS  BFT — 2 out of 3 must agree                  │
+  │                                                             │   └──────────────┘
+  │  4. EVALUATE   LLM scores each agent  ─────────────────────┼──►┌──────────────┐
+  │                8 dims → 3 on-chain scores                   │   │     LLM      │
+  │                (via Confidential HTTP,                       │   │ Confidential │
+  │                 API key in DON Vault)                        │   │ HTTP + Vault │
+  │                                                             │   └──────────────┘
+  │  5. CONSENSUS  BFT — 2 out of 3 must agree                 │
   │                                                             │
   │  6. WRITE      DON-signed report                            │
   │                                                             │
@@ -65,6 +66,62 @@ View agents on the [Trust8004 Explorer](https://www.trust8004.xyz).
                   │ • Bets settled       │
                   │   (1% settler fee)   │
                   └──────────────────────┘
+```
+
+### Sequence Diagram
+
+```
+  Anyone        Contract        CRE Workflow (DON TEE)       AI Agents        LLM
+    │               │                    │                      │               │
+    │ requestReso-  │                    │                      │               │
+    │ lution()      │                    │                      │               │
+    │──────────────►│                    │                      │               │
+    │               │                    │                      │               │
+    │               │  ResolutionReques- │                      │               │
+    │               │  ted event         │                      │               │
+    │               │───────────────────►│                      │               │
+    │               │                    │                      │               │
+    │               │  1. READ market    │                      │               │
+    │               │◄───────────────────│                      │               │
+    │               │  question,workers  │                      │               │
+    │               │───────────────────►│                      │               │
+    │               │                    │                      │               │
+    │               │                    │  2. ASK              │               │
+    │               │                    │  POST /a2a/resolve   │               │
+    │               │                    │─────────────────────►│               │
+    │               │                    │  determination,      │               │
+    │               │                    │  evidence, sources   │               │
+    │               │                    │◄─────────────────────│               │
+    │               │                    │                      │               │
+    │               │                    │  3. CHALLENGE        │               │
+    │               │                    │  POST /a2a/challenge │               │
+    │               │                    │─────────────────────►│               │
+    │               │                    │  defense responses   │               │
+    │               │                    │◄─────────────────────│               │
+    │               │                    │                      │               │
+    │               │                    │  4. EVALUATE         │               │
+    │               │                    │  all evidence +      │               │
+    │               │                    │  challenge responses │               │
+    │               │                    │  (Confidential HTTP) │               │
+    │               │                    │─────────────────────────────────────►│
+    │               │                    │  8 quality scores    │               │
+    │               │                    │  per agent           │               │
+    │               │                    │◄─────────────────────────────────────│
+    │               │                    │                      │               │
+    │               │                    │  5. CONSENSUS        │               │
+    │               │                    │  (BFT 2/3 agree)     │               │
+    │               │                    │  8 dims → 3 on-chain │               │
+    │               │                    │                      │               │
+    │               │  6. WRITE          │                      │               │
+    │               │  DON-signed report │                      │               │
+    │               │◄───────────────────│                      │               │
+    │               │                    │                      │               │
+    │               │  resolveMarket()   │                      │               │
+    │               │  • rewards         │                      │               │
+    │               │  • stakes returned │                      │               │
+    │               │  • reputation      │                      │               │
+    │               │    updated (8004)  │                      │               │
+    │               │                    │                      │               │
 ```
 
 | Directory | Description |

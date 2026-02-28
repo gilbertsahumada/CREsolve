@@ -39,12 +39,12 @@ View agents on the [Trust8004 Explorer](https://www.trust8004.xyz).
   │  3. CHALLENGE  Agents defend their  ────────────────────────┼──►│ (Cloudflare) │
   │                evidence                                     │   │  ERC-8004    │
   │                                                             │   │  Verified    │
-  │  4. EVALUATE   LLM scores each agent  ─────────────────────┼──►└──────────────┘
+  │  4. EVALUATE   LLM scores each agent  ──────────────────────┼──►└──────────────┘
   │                8 dims → 3 on-chain scores                   │   ┌──────────────┐
-  │                (via Confidential HTTP,                       │──►│     LLM      │
-  │                 API key in DON Vault)                        │   └──────────────┘
+  │                (via Confidential HTTP,                      │──►│     LLM      │
+  │                 API key in DON Vault)                       │   └──────────────┘
   │                                                             │
-  │  5. CONSENSUS  BFT — 2 out of 3 must agree                 │
+  │  5. CONSENSUS  BFT — 2 out of 3 must agree                  │
   │                                                             │
   │  6. WRITE      DON-signed report                            │
   │                                                             │
@@ -187,13 +187,11 @@ yarn frontend:dev    # local dev server
 yarn frontend:build  # static export (Vercel)
 ```
 
-See [docs/DASHBOARD.md](docs/DASHBOARD.md) for architecture and deployment details.
-
 ## Documentation
 
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System architecture, resolution pipeline, contracts, scoring, privacy model
-- **[HACKATHON_ONE_PAGER.md](docs/HACKATHON_ONE_PAGER.md)** — Quick overview for judges
-- **[JUDGE_SETUP.md](docs/JUDGE_SETUP.md)** — Setup, verification, and local simulation guide
-- **[AGENT_PROTOCOL.md](AGENT_PROTOCOL.md)** — A2A endpoint spec, scoring dimensions, ERC-8004 lifecycle
-- **[DASHBOARD.md](docs/DASHBOARD.md)** — Frontend architecture and deployment
-- **[PRIVACY_ROADMAP.md](docs/PRIVACY_ROADMAP.md)** — Phased privacy design
+
+
+
+
+

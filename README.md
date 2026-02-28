@@ -20,37 +20,51 @@ View agents on the [Trust8004 Explorer](https://www.trust8004.xyz).
 ## Architecture
 
 ```
-                         ┌─────────────────────────────────────────────┐
-                         │              Chainlink DON (TEE)            │
-                         │                                             │
-  requestResolution()    │  ┌─────────────────────────────────────┐   │
-  emits event ──────────►│  │  CRE Workflow (TypeScript → WASM)   │   │
-                         │  │                                     │   │
-                         │  │  1. READ  ── on-chain data ◄────────┼───┼── CREsolverMarket
-                         │  │  2. ASK   ── /a2a/resolve  ────────►│   │   (Solidity)
-                         │  │  3. CHALLENGE ─ /a2a/challenge ────►│   │
-                         │  │  4. EVALUATE ── LLM scoring         │   │   ┌────────────────┐
-                         │  │  5. RESOLVE ── BFT consensus        │   │   │ Worker Agents  │
-                         │  │  6. WRITE  ── runtime.report()      │   │   │ (Cloudflare)   │
-                         │  │                                     │   │   │ /a2a/resolve   │
-                         │  └─────────────┬───────────────────────┘   │   │ /a2a/challenge │
-                         │                │ DON-signed report         │   └────────────────┘
-                         └────────────────┼───────────────────────────┘
-                                          ▼
-                         ┌──────────────────────────────┐
-                         │    KeystoneForwarder          │
-                         └──────────────┬───────────────┘
-                                        ▼
-                         ┌──────────────────────────────┐
-                         │    CREReceiver (bridge)       │──► resolveMarket()
-                         └──────────────────────────────┘         │
-                                                                  ▼
-                                                    ┌──────────────────────┐
-                                                    │  CREsolverMarket     │
-                                                    │  • distribute rewards│
-                                                    │  • return stakes     │
-                                                    │  • update reputation │
-                                                    └──────────────────────┘
+  ┌────────────────┐     ┌────────────────┐     ┌────────────────┐
+  │ Market Created │────►│ Agents Join    │────►│ requestResolu- │
+  │ Question + ETH │     │ + Stake ETH    │     │ tion()         │
+  │ reward pool    │     │ (ERC-8004 ID)  │     │ (anyone calls) │
+  └────────────────┘     └────────────────┘     └───────┬────────┘
+                                                        │ on-chain event
+                                                        ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │                    Chainlink DON (TEE)                      │
+  │                                                             │
+  │  CRE Workflow                                               │
+  │                                                             │
+  │  1. READ       Read market data from chain                  │
+  │                                                             │
+  │  2. ASK        Each agent researches  ──────────────────────┼──►┌──────────────┐
+  │                independently                                │   │  AI Agents   │
+  │  3. CHALLENGE  Agents defend their  ────────────────────────┼──►│ (Cloudflare) │
+  │                evidence                                     │   │  ERC-8004    │
+  │                                                             │   │  Verified    │
+  │  4. EVALUATE   LLM scores each agent  ─────────────────────┼──►└──────────────┘
+  │                8 dims → 3 on-chain scores                   │   ┌──────────────┐
+  │                (via Confidential HTTP,                       │──►│     LLM      │
+  │                 API key in DON Vault)                        │   └──────────────┘
+  │                                                             │
+  │  5. CONSENSUS  BFT — 2 out of 3 must agree                 │
+  │                                                             │
+  │  6. WRITE      DON-signed report                            │
+  │                                                             │
+  └────────────────────────────┬────────────────────────────────┘
+                               │
+                               ▼
+                  ┌──────────────────────┐
+                  │ CREReceiver          │
+                  │ resolveMarket()      │
+                  └──────────┬───────────┘
+                             ▼
+                  ┌──────────────────────┐
+                  │ On-Chain Settlement  │
+                  │ • Rewards distributed│
+                  │ • Stakes returned    │
+                  │ • Reputation updated │
+                  │   (ERC-8004)         │
+                  │ • Bets settled       │
+                  │   (1% settler fee)   │
+                  └──────────────────────┘
 ```
 
 | Directory | Description |

@@ -335,7 +335,7 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
                     )}
                   </div>
                   <div className="grid grid-cols-3 gap-2">
-                    <MiniRepBar label="Res" value={w.reputation.resQuality} color="#3b82f6" />
+                    <MiniRepBar label="Res" value={w.reputation.resQuality} color="#10b981" />
                     <MiniRepBar label="Src" value={w.reputation.srcQuality} color="#8b5cf6" />
                     <MiniRepBar label="Depth" value={w.reputation.analysisDepth} color="#06b6d4" />
                   </div>
@@ -348,7 +348,7 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
                 href="https://www.trust8004.xyz"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent hover:text-blue-300 transition-colors"
+                className="text-accent hover:text-emerald-300 transition-colors"
               >
                 verify on trust8004.xyz
               </a>
@@ -415,7 +415,7 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
                               href={etherscanAddress(agentWallet)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="font-mono text-accent hover:text-blue-300 transition-colors"
+                              className="font-mono text-accent hover:text-emerald-300 transition-colors"
                             >
                               {agentWallet.slice(0, 6)}...{agentWallet.slice(-4)}
                             </a>

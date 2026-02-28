@@ -10,6 +10,21 @@ interface ChangelogEntry {
 const entries: ChangelogEntry[] = [
   {
     date: "2026-02-28",
+    version: "v0.8.0",
+    title: "Geist Font + Crystal Logo + Monochrome Gray + Emerald Accent",
+    description:
+      "Visual refresh with Vercel's Geist font family, a crystal/prism logo, monochrome gray palette, and emerald green accent color for a cleaner, more minimal aesthetic.",
+    type: "improvement",
+    highlights: [
+      "Switched to Geist Sans and Geist Mono fonts from Vercel",
+      "Replaced CR text logo with a geometric crystal/prism SVG icon",
+      "Swapped navy-blue palette for neutral monochrome grays",
+      "Changed accent color from blue (#3b82f6) to emerald (#10b981)",
+      "Updated all hardcoded hex values and hover states across components",
+    ],
+  },
+  {
+    date: "2026-02-28",
     version: "v0.7.0",
     title: "shadcn UI Refactor + Pagination",
     description:

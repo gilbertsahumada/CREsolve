@@ -14,8 +14,14 @@ export default function Header() {
     <header className="border-b border-navy-700 bg-navy-800/50 backdrop-blur-sm sticky top-0 z-50">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent font-bold text-white shadow-lg shadow-accent/20">
-            CR
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent shadow-lg shadow-accent/20">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L3 9L12 22L21 9L12 2Z" fill="white" opacity="0.9" />
+              <path d="M12 2L3 9H21L12 2Z" fill="white" />
+              <path d="M12 2L7.5 9L12 22L16.5 9L12 2Z" fill="white" opacity="0.7" />
+              <path d="M3 9L12 22L7.5 9H3Z" fill="white" opacity="0.5" />
+              <path d="M21 9L12 22L16.5 9H21Z" fill="white" opacity="0.6" />
+            </svg>
           </div>
           <div>
             <h1 className="text-lg font-semibold text-white tracking-tight">CREsolver</h1>

@@ -10,16 +10,17 @@ const config: Config = {
     extend: {
       colors: {
         navy: {
-          950: "#0a0f1e",
-          900: "#0f172a",
-          800: "#1e293b",
-          700: "#334155",
-          600: "#475569",
+          950: "#0a0a0a",
+          900: "#111111",
+          800: "#1a1a1a",
+          700: "#2a2a2a",
+          600: "#404040",
         },
-        accent: "#3b82f6",
+        accent: "#10b981",
       },
       fontFamily: {
-        mono: ["JetBrains Mono", "Fira Code", "monospace"],
+        sans: ["var(--font-geist-sans)"],
+        mono: ["var(--font-geist-mono)"],
       },
       keyframes: {
         "accordion-down": {

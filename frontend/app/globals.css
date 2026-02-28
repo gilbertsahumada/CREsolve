@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 body {
-  background-color: #0f172a;
+  background-color: #111111;
   color: #e2e8f0;
 }
 
@@ -11,7 +11,7 @@ body {
 .rep-bar {
   height: 6px;
   border-radius: 3px;
-  background-color: #475569;
+  background-color: #404040;
   overflow: hidden;
 }
 
@@ -25,7 +25,7 @@ body {
 .pipeline-connector {
   flex: 1;
   height: 2px;
-  background: linear-gradient(90deg, #3b82f6, #1e293b);
+  background: linear-gradient(90deg, #10b981, #1a1a1a);
 }
 
 /* Pulse animation for active steps */

@@ -114,7 +114,7 @@ export default function AgentCard({ agent }: { agent: AgentInfo }) {
           <ReputationBar
             label="Resolution Quality"
             value={agent.reputation.resQuality}
-            color="#3b82f6"
+            color="#10b981"
           />
           <ReputationBar
             label="Source Quality"

@@ -21,12 +21,95 @@ body {
   transition: width 0.6s ease;
 }
 
-/* Pipeline step connector */
-.pipeline-connector {
-  flex: 1;
+/* ── Pipeline: solid constant line ── */
+.pipeline-line-h {
+  position: absolute;
+  top: 20px; /* center of h-10 badge */
+  left: calc(100% / 12);
+  right: calc(100% / 12);
   height: 2px;
-  background: linear-gradient(90deg, #10b981, #1a1a1a);
+  background: #2a2a2a;
+  overflow: hidden;
 }
+
+/* Traveling data pulse */
+.pipeline-line-h::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 6px;
+  border-radius: 3px;
+  background: radial-gradient(ellipse, #10b981 0%, transparent 70%);
+  box-shadow: 0 0 14px 4px rgba(16, 185, 129, 0.5);
+  animation: travel-h 4s linear infinite;
+}
+
+@keyframes travel-h {
+  0%   { left: -48px; }
+  100% { left: calc(100% + 48px); }
+}
+
+/* ── Pipeline: vertical line (mobile) ── */
+.pipeline-line-v {
+  position: absolute;
+  top: 16px; /* center of first h-8 badge */
+  bottom: 16px; /* center of last h-8 badge */
+  left: 15px; /* center of h-8 badge (32/2) */
+  width: 2px;
+  background: #2a2a2a;
+  overflow: hidden;
+}
+
+.pipeline-line-v::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 32px;
+  width: 6px;
+  border-radius: 3px;
+  background: radial-gradient(ellipse, #10b981 0%, transparent 70%);
+  box-shadow: 0 0 14px 4px rgba(16, 185, 129, 0.5);
+  animation: travel-v 4s linear infinite;
+}
+
+@keyframes travel-v {
+  0%   { top: -32px; }
+  100% { top: calc(100% + 32px); }
+}
+
+/* ── Step flash: brief glow when the pulse passes ── */
+@keyframes step-flash {
+  0%   {
+    box-shadow: 0 0 18px 6px rgba(16, 185, 129, 0.6);
+    border-color: #10b981;
+    background-color: #1a4d38;
+  }
+  12%  {
+    box-shadow: none;
+    border-color: #1a3a2a;
+    background-color: #132d22;
+  }
+  100% {
+    box-shadow: none;
+    border-color: #1a3a2a;
+    background-color: #132d22;
+  }
+}
+
+.pipeline-step {
+  animation: step-flash 4s linear infinite;
+}
+
+/* Stagger flashes to match the traveling pulse (4s / 6 steps ≈ 0.67s apart) */
+.pipeline-step-0 { animation-delay: 0s; }
+.pipeline-step-1 { animation-delay: 0.67s; }
+.pipeline-step-2 { animation-delay: 1.33s; }
+.pipeline-step-3 { animation-delay: 2s; }
+.pipeline-step-4 { animation-delay: 2.67s; }
+.pipeline-step-5 { animation-delay: 3.33s; }
 
 /* Pulse animation for active steps */
 @keyframes pulse-dot {

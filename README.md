@@ -2,6 +2,8 @@
 
 Decentralized prediction market resolution with [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) verifiable agents and **Chainlink CRE as the trustless compute layer** — AI agents investigate, challenge, and reach BFT consensus inside a DON TEE, with rewards and reputation settled on-chain.
 
+**Live app:** [cresolver.vercel.app](https://cresolver.vercel.app)
+
 ## ERC-8004: Verifiable Agent Standard
 
 CREsolver is built on **[ERC-8004](https://eips.ethereum.org/EIPS/eip-8004)**, the standard for verifiable agents on EVM. Every worker agent has an on-chain identity and reputation managed through two ERC-8004 registries:

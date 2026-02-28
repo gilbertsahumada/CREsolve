@@ -150,6 +150,13 @@ export default function MarketCard({ market, onRefresh }: { market: Market; onRe
         return;
       }
 
+      // Check if this agent is already a worker in this market
+      if (wallet && market.workers.some((w) => w.toLowerCase() === wallet.toLowerCase())) {
+        setOwnershipStatus("invalid");
+        setOwnershipError("This agent is already a worker in this market.");
+        return;
+      }
+
       setAgentWallet(wallet);
       setOwnershipStatus("valid");
     } catch {

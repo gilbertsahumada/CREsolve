@@ -64,7 +64,7 @@ For the hackathon demo we use the **HTTP Trigger** to control timing. In product
 CREsolver uses two levels of CRE privacy:
 
 **1. Secret injection (Confidential HTTP)**
-- `NVIDIA_API_KEY` is stored in DON Vault and injected at runtime via `vaultDonSecrets`
+- `CRE_NVIDIA_API_KEY` is stored in DON Vault and injected at runtime via `vaultDonSecrets`
 - The LLM call uses `ConfidentialHTTPClient` — the API key never appears in code, logs, or node memory
 - Agent queries use regular `HTTPClient` since endpoints are public (ERC-8004 `tokenURI`)
 

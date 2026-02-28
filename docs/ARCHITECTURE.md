@@ -711,7 +711,7 @@ The workflow uses two HTTP clients with different privacy guarantees:
 
 | Client | Used for | Why |
 |--------|----------|-----|
-| `ConfidentialHTTPClient` | LLM evaluation (NVIDIA NIM API) | Protects `NVIDIA_API_KEY` via DON Vault secret injection. Request executes inside the enclave — API key never appears in code, logs, or node memory. |
+| `ConfidentialHTTPClient` | LLM evaluation (NVIDIA NIM API) | Protects `CRE_NVIDIA_API_KEY` via DON Vault secret injection. Request executes inside the enclave — API key never appears in code, logs, or node memory. |
 | `HTTPClient` | Agent queries (`/a2a/resolve`, `/a2a/challenge`) and health checks | Agent endpoints are public (discoverable via ERC-8004 `tokenURI`). Responses are processed inside TEE and never written raw on-chain. |
 
 ### Why We Don't Use `encryptOutput`
